@@ -1242,9 +1242,9 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-search button{padding:0 12px!important;font-size:12.5px!important}
 .mx-note{font-size:11.5px;color:rgba(238,242,255,.55);margin:-2px 0 8px;line-height:1.35}.mx-note:empty{display:none}
 /* ── Section buttons at the top of a tab: one section at a time. ── */
-.subtab-bar{display:flex;gap:4px;padding:3px;margin:0 0 10px;background:rgba(255,255,255,.05);border-radius:12px;position:sticky;top:0;z-index:3;backdrop-filter:blur(8px);overflow-x:auto;scrollbar-width:none}
+.subtab-bar{display:flex;gap:3px;padding:3px;margin:0 0 10px;background:rgba(255,255,255,.05);border-radius:12px;position:sticky;top:0;z-index:3;backdrop-filter:blur(8px);overflow-x:auto;scrollbar-width:none}
 .subtab-bar::-webkit-scrollbar{display:none}
-.subtab-bar button{flex:1 0 auto;border:0;background:none;color:rgba(238,242,255,.6);padding:7px 10px;border-radius:9px;font-size:12.5px;cursor:pointer;margin:0;min-height:0!important;white-space:nowrap;width:auto}
+.subtab-bar button{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;border:0;background:none;color:rgba(238,242,255,.6);padding:7px 4px;border-radius:9px;font-size:12.5px;cursor:pointer;margin:0;min-height:0!important;white-space:nowrap;width:auto}
 .subtab-bar button.on{background:rgba(255,255,255,.12);color:#eef2ff;font-weight:600}
 #sidebar-scroll > .sidebar-section.sub-hidden{display:none!important}
 #sidebar-scroll > .sidebar-section.sub-shown > .section-head{display:none}
@@ -1418,26 +1418,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
           </div>
       <div class="cx-pal-row"><span class="cx-pal-label">🎨 Colours</span><div id="cx-pal" class="cx-pal"></div></div>
       
-    </div>
-  </div>
-
-  <div class="sidebar-section" id="scenes-section" data-tab="play">
-    <button class="section-head">◈ Scenes <span class="chev">▾</span></button>
-    <div class="section-body">
-      <div class="ui-note">A scene is an effect with its colours and options. Save what\u2019s showing, or let your ★ favourites take turns.</div>
-      <div id="scene-chips" class="scene-chips"></div>
-      <div class="cx-row" id="playlist-row"><span>🔁 Cycle ★ every</span><select id="playlist-min" class="ui-input" aria-label="Minutes"><option value="1">1 min</option><option value="2">2 min</option><option value="5" selected>5 min</option><option value="10">10 min</option><option value="30">30 min</option></select><button class="cx-switch" id="playlist-sw" aria-label="Playlist on/off"></button></div>
-      <div class="ui-note" id="playlist-note"></div>
-      <div style="display:flex;gap:6px;margin-top:8px;">
-        <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save what's showing as a scene…" aria-label="Scene name">
-        <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
-      </div>
-      <div id="party-box" class="party-box">
-        <div class="party-idle"><button type="button" id="party-open" class="party-btn">🎉 Party mode</button></div>
-        <div class="party-form" hidden><input type="text" id="party-text" class="ui-input" maxlength="24" placeholder="Message (optional)" aria-label="Party message">
-          <div class="as-row"><select id="party-min" class="ui-input" aria-label="How long"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select><button type="button" id="party-go" class="ui-btn-small">Start</button></div></div>
-        <div class="party-on" hidden><span id="party-status"></span><button type="button" id="party-stop" class="ui-btn-small">Stop</button></div>
-      </div>
     </div>
   </div>
 
@@ -2186,6 +2166,26 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 
     </div>
     </div>
+    </div>
+  </div>
+
+  <div class="sidebar-section" id="scenes-section" data-tab="play">
+    <button class="section-head">◈ Scenes <span class="chev">▾</span></button>
+    <div class="section-body">
+      <div class="ui-note">A scene is an effect with its colours and options. Save what\u2019s showing, or let your ★ favourites take turns.</div>
+      <div id="scene-chips" class="scene-chips"></div>
+      <div class="cx-row" id="playlist-row"><span>🔁 Cycle ★ every</span><select id="playlist-min" class="ui-input" aria-label="Minutes"><option value="1">1 min</option><option value="2">2 min</option><option value="5" selected>5 min</option><option value="10">10 min</option><option value="30">30 min</option></select><button class="cx-switch" id="playlist-sw" aria-label="Playlist on/off"></button></div>
+      <div class="ui-note" id="playlist-note"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="scene-name-input" class="ui-input" type="text" maxlength="40" placeholder="Save what's showing as a scene…" aria-label="Scene name">
+        <button id="scene-save-btn" class="ui-btn-small" style="flex:0 0 auto;padding:5px 12px;">Save</button>
+      </div>
+      <div id="party-box" class="party-box">
+        <div class="party-idle"><button type="button" id="party-open" class="party-btn">🎉 Party mode</button></div>
+        <div class="party-form" hidden><input type="text" id="party-text" class="ui-input" maxlength="24" placeholder="Message (optional)" aria-label="Party message">
+          <div class="as-row"><select id="party-min" class="ui-input" aria-label="How long"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select><button type="button" id="party-go" class="ui-btn-small">Start</button></div></div>
+        <div class="party-on" hidden><span id="party-status"></span><button type="button" id="party-stop" class="ui-btn-small">Stop</button></div>
+      </div>
     </div>
   </div>
 
