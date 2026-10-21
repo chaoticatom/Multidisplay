@@ -187,7 +187,7 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
     if (!st.home) return [];
     const now = Date.now();
     return st.planes.map((p) => {
-      const dt = Math.min(25, Math.max(0, (now - p.fix) / 1000)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
+      const dt = Math.min(90, Math.max(0, (now - p.fix) / 1000)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
       const lat = p.lat + (km * Math.cos(tr)) / 111.2, lon = p.lon + (km * Math.sin(tr)) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
       const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
       // Will it pass over home? Its closest approach on its present track.
@@ -202,7 +202,7 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
         const at = had && Math.abs(had - est) < 15000 ? had + (est - had) * 0.05 : est;
         st.dueAt.set(p.hex, at); dueIn = Math.max(0, (at - now) / 1000);
       } else st.dueAt.delete(p.hex);
-      return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5, route: route || null, airline: (route && route.airline) || al.name, color: al.color, interesting: isInteresting(p) };
+      return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5 || (miss < 2.5 && Math.abs(tc) < 6), route: route || null, airline: (route && route.airline) || al.name, color: al.color, interesting: isInteresting(p) };
     }).sort((a, b) => a.dist - b.dist);
   }
   return { update, planes, summary, status: () => st.status, state: st };

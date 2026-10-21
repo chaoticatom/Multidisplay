@@ -14,7 +14,7 @@ try {
   Object.defineProperty(radio, 'audio', { value: fake, configurable: true, writable: true });
   const effect = require('../src/effects/radioWall');
   const core = new CubeCore(64); core.initWall([{ gx: 0, gy: 0 }, { gx: 1, gy: 0 }], 64);
-  core.effectOptions = { radio: { spectrumOn: true, scene: 'hifi', autoGain: false, gain: 1 } };
+  core.effectOptions = { radio: { spectrumOn: true, scene: 'hifi', theme: 4, autoGain: false, gain: 1 } };
   for (let i = 0; i < 30; i++) effect(core, 1 / 30);
   const lit = (x0, x1) => { let s = 0; for (let y = 0; y < 30; y++) for (let x = x0; x < x1; x++) { const o = (y * 128 + x) * 3; s += core.wallBuf[o] + core.wallBuf[o + 1] + core.wallBuf[o + 2]; } return s; };
   const magenta = () => { let n = 0; for (let y = 0; y < 34; y++) for (let x = 0; x < 128; x++) { const o = (y * 128 + x) * 3, r = core.wallBuf[o], g = core.wallBuf[o + 1], b = core.wallBuf[o + 2]; if (r > 0.5 && b > 0.4 && g < r * 0.6) n++; } return n; };

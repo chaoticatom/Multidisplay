@@ -23649,7 +23649,7 @@ var PiEngine = (() => {
           if (!st.home) return [];
           const now = Date.now();
           return st.planes.map((p) => {
-            const dt = Math.min(25, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
+            const dt = Math.min(90, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
             const lat = p.lat + km * Math.cos(tr) / 111.2, lon = p.lon + km * Math.sin(tr) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
             const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
             const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;
@@ -23662,7 +23662,7 @@ var PiEngine = (() => {
               st.dueAt.set(p.hex, at);
               dueIn = Math.max(0, (at - now) / 1e3);
             } else st.dueAt.delete(p.hex);
-            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
+            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5 || miss < 2.5 && Math.abs(tc) < 6, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
           }).sort((a, b) => a.dist - b.dist);
         }
         return { update, planes, summary, status: () => st.status, state: st };
@@ -31168,7 +31168,13 @@ var PiEngine = (() => {
             const o = { bands, gain, autoGain: autoGainOn, fitToScreen };
             const lA = computeLevels(djNext.a, { spec: audio.specA, peak: audio.specA }, o, dt);
             const c2 = { ...ctx, amp: (i) => lA.amp[i], peak: (i) => lA.peak[i], ampArr: lA.amp, peakArr: lA.peak };
-            renderSpectrumV2Wall(core, c2, "hifi", v2State, opts.autoSecs);
+            const fullH = core.wallH;
+            core.wallH = fullH - DJ_ROWS;
+            try {
+              renderSpectrumStyleWall(core, c2, "bars", spectrumWallState);
+            } finally {
+              core.wallH = fullH;
+            }
             if (djInfo.mixing) {
               const W = core.wallW, area = core.wallH - DJ_ROWS, u = Math.max(0, Math.min(1, djInfo.mixU || 0)), px = u * W, wb = core.wallBuf;
               for (let y = 3; y < area; y++) for (let x = 0; x < Math.min(W, Math.ceil(px)); x++) {
