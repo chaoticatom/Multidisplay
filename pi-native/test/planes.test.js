@@ -59,6 +59,12 @@ const fakeFetch = (url) => Promise.resolve({ ok: true, status: 200, json: async 
     d6.state.routeAt = 0; d6.update({ lat: 52.04, lon: -0.76 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
     const vjt = d6.planes()[0];
     assert.ok(vjt.route && !vjt.route.from && vjt.airline === 'VistaJet', 'far-away route dropped: ' + JSON.stringify(vjt.route));
+    // A plane overhead, then the feed fails: it's dropped after a minute, not left overhead for good.
+    const d7 = createPlaneData((url) => Promise.resolve({ ok: true, status: 200, json: async () => (/adsbdb/.test(url) ? { response: 'unknown callsign' } : { ac: [{ hex: 'ezy001', flight: 'EZY737C', alt_baro: 10900, gs: 300, track: 0, lat: 51.47, lon: -0.45 }] }) }));
+    d7.update({ lat: 51.47, lon: -0.45 }); for (let i = 0; i < 80; i++) await new Promise((r) => setImmediate(r));
+    assert.ok(d7.planes().some((p) => p.overhead), 'overhead at first');
+    d7.state.planes.forEach((p) => { p.fix -= 61000; });
+    assert.strictEqual(d7.planes().length, 0, 'a plane not heard from for a minute is dropped');
     console.log('  ok - planes data: nearby aircraft, nearest first, routes');
 
     // Drawing: feed the effect's data directly.

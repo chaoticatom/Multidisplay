@@ -23403,6 +23403,7 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { fetchWithTimeout } = require_net();
       var POLL_MS = 8e3;
+      var STALE_MS = 6e4;
       var ROUTE_GAP_MS = 1500;
       var KT_TO_KMS = 1.852 / 3600;
       var AIRLINES = {
@@ -23648,8 +23649,8 @@ var PiEngine = (() => {
         function planes() {
           if (!st.home) return [];
           const now = Date.now();
-          return st.planes.map((p) => {
-            const dt = Math.min(90, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
+          return st.planes.filter((p) => now - p.fix < STALE_MS).map((p) => {
+            const dt = Math.min(STALE_MS / 1e3, Math.max(0, (now - p.fix) / 1e3)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
             const lat = p.lat + km * Math.cos(tr) / 111.2, lon = p.lon + km * Math.sin(tr) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
             const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
             const b = rel.brg * Math.PI / 180, e = rel.dist * Math.sin(b), nn = rel.dist * Math.cos(b), v = p.gs * KT_TO_KMS;

@@ -11,6 +11,7 @@
 const { fetchWithTimeout } = require('../net');
 
 const POLL_MS = 8000;
+const STALE_MS = 60000; // drop a plane with no position for this long
 const ROUTE_GAP_MS = 1500;
 const KT_TO_KMS = 1.852 / 3600;
 
@@ -186,8 +187,11 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
   function planes() {
     if (!st.home) return [];
     const now = Date.now();
-    return st.planes.map((p) => {
-      const dt = Math.min(90, Math.max(0, (now - p.fix) / 1000)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
+    // A plane not heard from for a minute (it left the feed's range, or the
+    // feed itself is failing) is dropped rather than shown frozen in place -
+    // otherwise its overhead alert never clears.
+    return st.planes.filter((p) => now - p.fix < STALE_MS).map((p) => {
+      const dt = Math.min(STALE_MS / 1000, Math.max(0, (now - p.fix) / 1000)), km = p.gs * KT_TO_KMS * dt, tr = p.track * Math.PI / 180;
       const lat = p.lat + (km * Math.cos(tr)) / 111.2, lon = p.lon + (km * Math.sin(tr)) / (111.2 * Math.cos(p.lat * Math.PI / 180) || 1);
       const rel = relate(lat, lon), r0 = st.routes.get(p.cs), route = r0 && r0.from && !routeFits(r0, lat, lon) ? { airline: r0.airline, from: null, to: null } : r0, al = airlineOf(p.cs);
       // Will it pass over home? Its closest approach on its present track.
