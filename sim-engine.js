@@ -23856,8 +23856,9 @@ var PiEngine = (() => {
         drawRadar(tg, [], -1, t * 0.5, 1, false);
         const lines = String(msg || "SKIES CLEAR").toUpperCase().split("\n");
         lines.forEach((l, i) => {
-          const s = fit(l, tg.w - 4, w3);
-          txt(tg, FONT_3x5, s, Math.round(tg.w / 2 - w3(s) / 2), Math.round(tg.h / 2) - 4 + i * 7, i ? DM : WH, 0.9);
+          const y = Math.round(tg.h / 2) - 4 + i * 7, lw = w3(l);
+          if (lw > tg.w - 4) txt(tg, FONT_3x5, l, Math.round(tg.w - t * 20 % (lw + tg.w)), y, i ? DM : WH, 0.9);
+          else txt(tg, FONT_3x5, l, Math.round(tg.w / 2 - lw / 2), y, i ? DM : WH, 0.9);
         });
       }
       function drawDue(tg, planes, t) {
