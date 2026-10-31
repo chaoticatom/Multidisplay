@@ -28,9 +28,14 @@ class RgbMatrixDriver {
     if (this.mode === '2d') {
       topology = { chainLength: 1, parallel: 1 };
     } else if (this.mode === 'wall' && Array.isArray(opts.panels) && opts.panels.length) {
+      // At least the full 2-per-output x 3-output wiring, whatever the
+      // layout uses: a panel on the chain beyond chainLength isn't dark, it
+      // shows a shifted echo of the one before it - a real report ("panel 1
+      // is showing on two panels, the second slightly distorted"). Unused
+      // slots are drawn black instead.
       topology = {
-        chainLength: Math.max(1, ...opts.panels.map((p) => p.gx + 1)),
-        parallel: Math.max(1, ...opts.panels.map((p) => p.gy + 1)),
+        chainLength: Math.max(2, ...opts.panels.map((p) => p.gx + 1)),
+        parallel: Math.max(3, ...opts.panels.map((p) => p.gy + 1)),
       };
     } else {
       topology = { chainLength: 2, parallel: 3 }; // 'cube' - fixed, see above
@@ -57,6 +62,7 @@ class RgbMatrixDriver {
       ...opts.runtimeOptions,
     };
     this.matrix = new LedMatrix(matrixOptions, runtimeOptions);
+    this._slots = { cols: matrixOptions.chainLength || 1, rows: matrixOptions.parallel || 1 };
     this._faceBufCache = new Uint8Array(64 * 64 * 3);
   }
 
@@ -113,9 +119,9 @@ class RgbMatrixDriver {
     // with no layout panel there - the corner of an L-shape - is drawn black;
     // skipping it left that physical panel frozen on its last picture.
     const cols = core.wallCols, rows = Math.max(1, ...core.wallPanels.map((p) => p.gy + 1));
-    for (let gy = 0; gy < rows; gy++) {
-      for (let gx = 0; gx < cols; gx++) {
-        const lx = cols - 1 - gx, on = core.wallPanels.some((p) => p.gx === lx && p.gy === gy);
+    for (let gy = 0; gy < Math.max(rows, this._slots.rows); gy++) {
+      for (let gx = 0; gx < Math.max(cols, this._slots.cols); gx++) {
+        const lx = cols - 1 - gx, on = gy < rows && gx < cols && core.wallPanels.some((p) => p.gx === lx && p.gy === gy);
         const buf = on ? this._buildWallPanelBuffer(core, { gx, gy }, brightness) : this._blank();
         this.matrix.drawBuffer(buf, PANEL, PANEL, gx * PANEL, gy * PANEL);
       }

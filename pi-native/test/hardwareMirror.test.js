@@ -66,10 +66,7 @@ async function run() {
     const d = new RgbMatrixDriver({ mode: 'cube' });
     d.renderFrame(core, 1.0);
     const buf = d.matrix.calls[0].buf; // face 0
-    // The side faces are turned 180 for how they're mounted: the left half
-    // (red) lands on the right, and nothing else mirrors it.
-    assert.deepStrictEqual(px(buf, 64, 63, 63), [1, 0, 0].map((v) => v * 255), 'cube face 0 turned 180: left half shows bottom-right');
-    assert.deepStrictEqual(px(buf, 64, 0, 0), [0, 0, 1].map((v) => v * 255), 'cube face 0 turned 180: right half shows top-left');
+    assert.deepStrictEqual(px(buf, 64, 0, 0), [1, 0, 0].map((v) => v * 255), 'cube mode face 0 should NOT be mirrored - left stays left');
   });
 
   await test('wall mode: the whole assembled multi-panel canvas is mirrored, not each panel in place', () => {
@@ -81,9 +78,9 @@ async function run() {
     }
     const d = new RgbMatrixDriver({ mode: 'wall' });
     d.renderFrame(core, 1.0);
-    assert.strictEqual(d.matrix.calls.length, 2);
+    assert.strictEqual(d.matrix.calls.length, 6, 'all 2x3 slots drawn (unused ones black)');
     const byGx = {};
-    for (const c of d.matrix.calls) byGx[c.x / 64] = c.buf;
+    for (const c of d.matrix.calls) if (c.y === 0) byGx[c.x / 64] = c.buf;
     // physical panel at gx=0 (left) should now show what was originally the far-right (blue) content
     assert.deepStrictEqual(px(byGx[0], 64, 0, 0), [0, 0, 255], 'physical left panel should show the original right-side content');
     // physical panel at gx=1 (right) should now show what was originally the far-left (red) content

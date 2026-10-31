@@ -30,7 +30,10 @@ try {
   core.wallBuf.fill(1);
   const d = new RgbMatrixDriver({ mode: 'wall', panels: [{ gx: 0, gy: 0 }] });
   d.renderFrame(core, 1);
-  assert.strictEqual(draws.length, 1);
+  // Every slot of the 2-per-output x 3-output wiring is drawn: a chained
+  // panel beyond the layout would otherwise echo the one before it.
+  assert.strictEqual(draws.length, 6);
+  assert.ok(draws.slice(1).every((q) => q.buf.every((v) => v === 0)), 'unused slots drawn black');
   assert.strictEqual(draws[0].w, 64);
   assert.strictEqual(draws[0].h, 64);
   assert.ok(draws[0].buf[(63 * 64 + 63) * 3] > 0, 'bottom-right pixel lit (scaled up)');
@@ -51,7 +54,7 @@ try {
   const dl = new RgbMatrixDriver({ mode: 'wall', panels: L });
   for (let y = 64; y < 128; y++) for (let x = 0; x < 64; x++) cl.setWallPixel(x, y, 0, 1, 0);
   draws.length = 0; dl.renderFrame(cl, 1);
-  assert.strictEqual(draws.length, 4, 'every slot on the chains is drawn');
+  assert.strictEqual(draws.length, 6, 'every slot on the chains is drawn');
   assert.ok(draws.find((q) => q.y === 64 && q.x === 64).buf[1] > 0, 'bottom-left picture in slot 2');
   assert.ok(draws.find((q) => q.y === 64 && q.x === 0).buf.every((v) => v === 0), 'empty corner slot drawn black');
   console.log('  ok - L-shaped layout: every panel shows its own picture');

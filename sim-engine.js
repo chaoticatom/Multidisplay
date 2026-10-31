@@ -32412,15 +32412,13 @@ var PiEngine = (() => {
         // report ("front and back are swapped": Front showed Back's content and
         // vice versa) - the physical panel at chain 0 pos 0 is actually wired as
         // Back, not Front.
-        // The four sides are turned 180 - a real report: "in 3d cube mode, all
-        // side displays need to rotate 180 degrees".
-        { chain: 0, pos: 1, rotate180: true },
+        { chain: 0, pos: 1 },
         // 0 Front
-        { chain: 0, pos: 0, rotate180: true },
+        { chain: 0, pos: 0 },
         // 1 Back
-        { chain: 1, pos: 0, rotate180: true },
+        { chain: 1, pos: 0 },
         // 2 Right
-        { chain: 1, pos: 1, rotate180: true },
+        { chain: 1, pos: 1 },
         // 3 Left
         // rotateCW90 - a real report: "on cube mode, the top panel is reversed,
         // the flow from side panels does not flow to top correctly" - a 180°
@@ -32501,6 +32499,19 @@ var PiEngine = (() => {
         for (let face = 0; face < faceCount; face++) {
           const lines = config.mode === "2d" ? ["PANEL 1"] : [FACE_NAMES[face], "OUT " + (FACE_LAYOUT[face].chain + 1), "POS " + (FACE_LAYOUT[face].pos + 1)];
           drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
+          if (config.mode !== "2d" && face < 4) rotateFace180(core, face);
+        }
+      }
+      function rotateFace180(core, face) {
+        const S = core.SIZE, map = core.faceMap[face], c = core.colBuf, n = S * S;
+        for (let i = 0; i < n >> 1; i++) {
+          const a = map[i], b = map[n - 1 - i];
+          if (a < 0 || b < 0) continue;
+          for (let k = 0; k < 3; k++) {
+            const t = c[a * 3 + k];
+            c[a * 3 + k] = c[b * 3 + k];
+            c[b * 3 + k] = t;
+          }
         }
       }
       function renderIdentifyWall(core, config) {
