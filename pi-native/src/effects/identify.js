@@ -43,7 +43,11 @@ function renderIdentifyCube(core, config) {
     const lines = config.mode === '2d'
       ? ['PANEL 1']
       : [FACE_NAMES[face], 'OUT ' + (FACE_LAYOUT[face].chain + 1), 'POS ' + (FACE_LAYOUT[face].pos + 1)];
-    drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
+    const scale = pickScale(lines, core.SIZE, 4), S = core.SIZE;
+    // Side faces count v upwards (as canvas effects draw them, see canvas.js),
+    // so the labels map y the same way - they read upside down otherwise.
+    if (face < 4 && config.mode !== '2d') drawLinesCentered(FONT_3x5, lines, S, S, (x, y) => { if (x >= 0 && y >= 0 && x < S && y < S) core.setFaceLED(face, x, S - 1 - y, 0.2, 1, 0.4); }, { scale });
+    else drawLinesCentered3x5(core, face, lines, scale, 0.2, 1, 0.4);
   }
 }
 

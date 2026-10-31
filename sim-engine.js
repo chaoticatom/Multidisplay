@@ -32522,7 +32522,11 @@ var PiEngine = (() => {
         const faceCount = config.mode === "2d" ? 1 : 6;
         for (let face = 0; face < faceCount; face++) {
           const lines = config.mode === "2d" ? ["PANEL 1"] : [FACE_NAMES[face], "OUT " + (FACE_LAYOUT[face].chain + 1), "POS " + (FACE_LAYOUT[face].pos + 1)];
-          drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
+          const scale = pickScale(lines, core.SIZE, 4), S = core.SIZE;
+          if (face < 4 && config.mode !== "2d") drawLinesCentered(FONT_3x5, lines, S, S, (x, y) => {
+            if (x >= 0 && y >= 0 && x < S && y < S) core.setFaceLED(face, x, S - 1 - y, 0.2, 1, 0.4);
+          }, { scale });
+          else drawLinesCentered3x5(core, face, lines, scale, 0.2, 1, 0.4);
         }
       }
       function renderIdentifyWall(core, config) {
