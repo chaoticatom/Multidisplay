@@ -1451,7 +1451,15 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <button class="effect-btn" data-effect="nebula">◈ Nebula Drift</button>
     <button class="effect-btn" data-effect="aurora">◈ Aurora Borealis</button>
     <button class="effect-btn" data-effect="warp">◈ Warp Drive</button>
-    <button class="effect-btn" data-effect="lightning">◈ Lightning Storm</button>
+    <button class="effect-btn has-panel" data-effect="lightning">◈ Lightning Storm <span class="panel-arrow">▸</span></button>
+    <div class="effect-panel" id="panel-lightning">
+      <div class="ov-row-label">Strikes a minute</div>
+      <div class="slider-row"><input type="range" data-lsopt="freq" min="1" max="60" step="1" value="13" style="flex:1;"><span class="slider-val" data-lsval="freq">13</span></div>
+      <div class="ov-row-label" style="margin-top:8px;">Bolts per strike</div>
+      <div class="slider-row"><input type="range" data-lsopt="count" min="1" max="5" step="1" value="1" style="flex:1;"><span class="slider-val" data-lsval="count">1</span></div>
+      <div class="ov-row-label" style="margin-top:8px;">Bolt speed</div>
+      <div class="slider-row"><input type="range" data-lsopt="speed" min="0.3" max="3" step="0.1" value="1" style="flex:1;"><span class="slider-val" data-lsval="speed">1</span></div>
+    </div>
     <button class="effect-btn has-panel" data-effect="lightspeed">◈ Light Speed <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-lightspeed">
       <div class="ov-row-label">Speed</div>
@@ -2961,6 +2969,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.386"></script>
+<script src="app.js?v=0.6.387"></script>
 </body>
 </html>

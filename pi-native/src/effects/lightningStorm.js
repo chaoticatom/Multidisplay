@@ -52,7 +52,13 @@ module.exports = defineFieldEffect({
     st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 1;
     st.next -= dt; st.cool -= dt;
     const beat = core && core.audio && core.audio.active && core.audio.beat > 0.85 && st.cool <= 0;
-    if (st.next <= 0 || beat) { st.bolts.push(makeBolt(st.w)); st.flash = 1; st.next = 2 + Math.random() * 5; st.cool = 0.8; }
+    // Options: freq (strikes a minute), count (bolts per strike), speed (how fast a bolt flashes and goes).
+    const o = (core && core.effectOptions && core.effectOptions.lightning) || {};
+    const freq = clamp(Number(o.freq) || 13, 1, 60), count = Math.round(clamp(Number(o.count) || 1, 1, 5)), speed = clamp(Number(o.speed) || 1, 0.3, 3);
+    if (st.next <= 0 || beat) {
+      for (let i = 0; i < count; i++) { const b = makeBolt(st.w); b.life /= speed; b.age = -i * 0.06 / speed; st.bolts.push(b); }
+      st.flash = 1; st.next = (60 / freq) * (0.5 + Math.random()); st.cool = 0.8;
+    }
     for (const b of st.bolts) { b.age += dt; if (b.re && b.age > 0.16 && b.age < 0.2) st.flash = Math.max(st.flash, 0.7); }
     st.bolts = st.bolts.filter((b) => b.age < b.life);
     st.flash *= Math.exp(-dt * 7);
@@ -75,6 +81,7 @@ module.exports = defineFieldEffect({
     if (rn > 0) { const k = rn * (1 + f * 3); r += k * 0.75; g += k * 0.85; b += k * 1.05; }
     // The bolts: a white-violet core and a wide glow.
     for (const bo of st.bolts) {
+      if (bo.age < 0) continue;
       const fade = 1 - bo.age / bo.life;
       for (const s of bo.segs) { const d = segDist(x, y, s); if (d > 0.06) continue; const core2 = Math.exp(-((d / (0.007 * s[4])) ** 2)) * 1.4, glow = Math.exp(-d / 0.02) * 0.3 * s[4]; const k = (core2 + glow) * fade; r += k * 0.85; g += k * 0.8; b += k; }
     }

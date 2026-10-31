@@ -10880,10 +10880,17 @@ var PiEngine = (() => {
           st.next -= dt;
           st.cool -= dt;
           const beat = core && core.audio && core.audio.active && core.audio.beat > 0.85 && st.cool <= 0;
+          const o = core && core.effectOptions && core.effectOptions.lightning || {};
+          const freq = clamp(Number(o.freq) || 13, 1, 60), count = Math.round(clamp(Number(o.count) || 1, 1, 5)), speed = clamp(Number(o.speed) || 1, 0.3, 3);
           if (st.next <= 0 || beat) {
-            st.bolts.push(makeBolt(st.w));
+            for (let i = 0; i < count; i++) {
+              const b = makeBolt(st.w);
+              b.life /= speed;
+              b.age = -i * 0.06 / speed;
+              st.bolts.push(b);
+            }
             st.flash = 1;
-            st.next = 2 + Math.random() * 5;
+            st.next = 60 / freq * (0.5 + Math.random());
             st.cool = 0.8;
           }
           for (const b of st.bolts) {
@@ -10915,6 +10922,7 @@ var PiEngine = (() => {
             b += k * 1.05;
           }
           for (const bo of st.bolts) {
+            if (bo.age < 0) continue;
             const fade = 1 - bo.age / bo.life;
             for (const s of bo.segs) {
               const d = segDist(x, y, s);

@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.386';
+const APP_VERSION = '0.6.387';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -25,7 +25,7 @@ const FACE_XFORM = [
 // .effect-btn[data-effect] wiring in loadEffectNames(). It's still listed
 // here (not wired to any setEffectOption) purely so markUnsupported() below
 // doesn't disable those two buttons, which live inside panel-random.
-const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face', 'planes']);
+const WIRED_OPTION_PANELS = new Set(['countdown', 'ai_art', 'my_photos', 'message', 'snake', 'pixel_pet', 'epic', 'rain', 'lightspeed', 'cam', 'weather', 'maze', 'tron', 'dice', 'coinflip', 'random', 'fireworks', 'retro', 'video', 'strobe', 'balls', 'radio', 'datetime', 'moon', 'apod', 'iss', 'neo', 'unsplash', 'artic', 'joke', 'trivia', 'otd', 'custom_cube', 'radar', 'talking_face', 'planes', 'lightning']);
 // Shared "Art" submenu prev/next/slideshow/letterbox/speed controls
 // (#art-slideshow-chk/#art-letterbox-chk/#art-speed/#art-prev-btn/
 // #art-next-btn) drive whichever of Unsplash/Art Gallery is the currently
@@ -291,6 +291,7 @@ function handleTextMessage(msg) {
     syncDicePanel();
     syncCoinflipPanel();
     syncFireworksPanel();
+    syncLightningPanel();
     syncRetroPanel();
     syncVideoPanel();
     syncStrobePanel();
@@ -1925,6 +1926,31 @@ function syncFireworksPanel() {
   if (textInput && document.activeElement !== textInput) textInput.value = opts.text || '';
 }
 
+
+// Lightning Storm: strikes a minute, bolts per strike, bolt speed.
+const LS_DEFAULTS = { freq: 13, count: 1, speed: 1 };
+function wireLightningPanel() {
+  const panel = document.getElementById('panel-lightning');
+  if (!panel) return;
+  panel.querySelectorAll('input[data-lsopt]').forEach((el) => {
+    el.addEventListener('input', () => {
+      const v = panel.querySelector(`[data-lsval="${el.dataset.lsopt}"]`);
+      if (v) v.textContent = el.value;
+      setEffectOption('lightning', el.dataset.lsopt, Number(el.value));
+    });
+  });
+}
+function syncLightningPanel() {
+  const panel = document.getElementById('panel-lightning');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.lightning || {};
+  panel.querySelectorAll('input[data-lsopt]').forEach((el) => {
+    if (document.activeElement === el) return;
+    el.value = opts[el.dataset.lsopt] ?? LS_DEFAULTS[el.dataset.lsopt];
+    const v = panel.querySelector(`[data-lsval="${el.dataset.lsopt}"]`);
+    if (v) v.textContent = el.value;
+  });
+}
 // ---------------------------------------------------------------------
 // Camera's option panel (panel-cam) - snapshot URL + fetch-rate slider,
 // backed by core.effectOptions.cam.{url,rate}. The original browser effect
@@ -5119,6 +5145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
+  wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
   wireStrobePanel();

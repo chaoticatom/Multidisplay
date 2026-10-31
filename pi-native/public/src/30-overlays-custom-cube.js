@@ -407,3 +407,28 @@ function syncFireworksPanel() {
   if (textInput && document.activeElement !== textInput) textInput.value = opts.text || '';
 }
 
+
+// Lightning Storm: strikes a minute, bolts per strike, bolt speed.
+const LS_DEFAULTS = { freq: 13, count: 1, speed: 1 };
+function wireLightningPanel() {
+  const panel = document.getElementById('panel-lightning');
+  if (!panel) return;
+  panel.querySelectorAll('input[data-lsopt]').forEach((el) => {
+    el.addEventListener('input', () => {
+      const v = panel.querySelector(`[data-lsval="${el.dataset.lsopt}"]`);
+      if (v) v.textContent = el.value;
+      setEffectOption('lightning', el.dataset.lsopt, Number(el.value));
+    });
+  });
+}
+function syncLightningPanel() {
+  const panel = document.getElementById('panel-lightning');
+  if (!panel) return;
+  const opts = currentState.effectOptions?.lightning || {};
+  panel.querySelectorAll('input[data-lsopt]').forEach((el) => {
+    if (document.activeElement === el) return;
+    el.value = opts[el.dataset.lsopt] ?? LS_DEFAULTS[el.dataset.lsopt];
+    const v = panel.querySelector(`[data-lsval="${el.dataset.lsopt}"]`);
+    if (v) v.textContent = el.value;
+  });
+}

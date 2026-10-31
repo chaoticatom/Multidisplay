@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
+  wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
   wireStrobePanel();
