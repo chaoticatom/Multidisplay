@@ -69,6 +69,17 @@ async function run() {
     assert.deepStrictEqual(px(buf, 64, 0, 0), [1, 0, 0].map((v) => v * 255), 'cube mode face 0 should NOT be mirrored - left stays left');
   });
 
+  await test('cube face orientation fix applies on the panels only', () => {
+    const core = new CubeCore(64);
+    for (let v = 0; v < 64; v++) for (let u = 0; u < 64; u++) { const idx = core.faceMap[0][v * 64 + u]; if (idx >= 0) core.setLED(idx, u < 32 ? 1 : 0, 0, u < 32 ? 0 : 1); }
+    const before = Float32Array.from(core.colBuf);
+    core.faceFix = ['mirror', '', '', '', '', ''];
+    const d = new RgbMatrixDriver({ mode: 'cube' });
+    d.renderFrame(core, 1.0);
+    assert.deepStrictEqual(px(d.matrix.calls[0].buf, 64, 0, 0), [0, 0, 255], 'front mirrored: right half shows on the left');
+    assert.deepStrictEqual(Array.from(core.colBuf), Array.from(before), 'colBuf (the preview) untouched');
+  });
+
   await test('wall mode: the whole assembled multi-panel canvas is mirrored, not each panel in place', () => {
     const core = new CubeCore(64);
     const panels = [{ gx: 0, gy: 0 }, { gx: 1, gy: 0 }];

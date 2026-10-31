@@ -252,8 +252,9 @@ function effectRadio(core, dt) {
       drawDjDecks(core, audio.djInfo || { now: ds.now, next: ds.next, mixing: ds.mixing, mixU: ds.mixU || 0, mixIn: ds.mixIn ?? -1 }, djDeckState, dt, core.audio ? core.audio.beat : 0, 'cube');
     } else {
       const label = currentStation.name + (songTitle ? '  -  ' + songTitle : genre ? '  •  ' + genre : '') + '    ';
+      // On every side face (it was only on two); the scroll advances once a frame.
       drawTicker(core, 0, label, dt);
-      if (core.panelMode !== '2d') drawTicker(core, 2, label, dt);
+      if (core.panelMode !== '2d') for (const f of [1, 2, 3]) drawTicker(core, f, label, 0);
     }
   }
 }

@@ -182,10 +182,11 @@ class RgbMatrixDriver {
         else if (layout && layout.rotate180) { su = SIZE - 1 - su; sv = SIZE - 1 - sv; }
         else if (layout && layout.flipH) { su = SIZE - 1 - su; }
         else if (layout && layout.flipV) { sv = SIZE - 1 - sv; }
-        // Identify Panels: the four side labels read upside down on the real
-        // cube while effects are right (a real report), so turn just those -
-        // here, not in colBuf, so the browser preview stays correct.
-        if (core.identifying && layout && face < 4) { su = SIZE - 1 - su; sv = SIZE - 1 - sv; }
+        // Setup's per-face orientation fix (panelConfig FACE_FIXES), for how
+        // each physical panel is mounted. Panels only, never the preview.
+        const fix = layout && core.faceFix ? core.faceFix[face] : '';
+        if (fix === 'mirror' || fix === 'rot180') su = SIZE - 1 - su;
+        if (fix === 'flip' || fix === 'rot180') sv = SIZE - 1 - sv;
         const led = faceMap[sv * SIZE + su];
         const o = (v * SIZE + u) * 3;
         if (led < 0) {

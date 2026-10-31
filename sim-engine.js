@@ -7504,7 +7504,7 @@ var PiEngine = (() => {
           } else {
             const label = currentStation.name + (songTitle ? "  -  " + songTitle : genre ? "  \u2022  " + genre : "") + "    ";
             drawTicker(core, 0, label, dt);
-            if (core.panelMode !== "2d") drawTicker(core, 2, label, dt);
+            if (core.panelMode !== "2d") for (const f of [1, 2, 3]) drawTicker(core, f, label, 0);
           }
         }
       }
@@ -32478,6 +32478,11 @@ var PiEngine = (() => {
           lsbNs: Number.isFinite(ns) ? Math.max(50, Math.min(300, Math.round(ns))) : 130
         };
       }
+      var FACE_FIXES = ["", "mirror", "flip", "rot180"];
+      var DEFAULT_FACE_FIX = ["mirror", "mirror", "mirror", "mirror", "", ""];
+      function cleanFaceFix(a) {
+        return Array.from({ length: 6 }, (_, i) => Array.isArray(a) && FACE_FIXES.includes(a[i]) ? a[i] : DEFAULT_FACE_FIX[i]);
+      }
       function load() {
         try {
           const raw = readSectionJson("panel", CONFIG_PATH);
@@ -32487,6 +32492,7 @@ var PiEngine = (() => {
           }
           if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
           parsed.signal = cleanSignal(parsed.signal);
+          parsed.faceFix = cleanFaceFix(parsed.faceFix);
           return normalizeFlat(parsed);
         } catch (err) {
           return normalizeFlat({ ...DEFAULT_CONFIG, panels: [...DEFAULT_CONFIG.panels], signal: cleanSignal(null) });
@@ -32495,7 +32501,7 @@ var PiEngine = (() => {
       function save(config) {
         writeSection("panel", config);
       }
-      module.exports = { cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+      module.exports = { cleanFaceFix, FACE_FIXES, cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
     }
   });
 
@@ -32993,7 +32999,7 @@ var PiEngine = (() => {
         core.tz = state.prefs && state.prefs.tz;
         core.customCubeFaces = state.customCube && state.customCube.faces;
         core.overlaysState = state.overlays;
-        core.identifying = !!state.identifyPanels;
+        core.faceFix = config.faceFix || require_panelConfig().cleanFaceFix(null);
         if (state.identifyPanels) {
           renderIdentify(core, config);
           return;

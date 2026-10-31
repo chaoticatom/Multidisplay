@@ -96,6 +96,18 @@ function cleanSignal(s) {
   };
 }
 
+// Cube face orientation fixes, set in Setup to match how each physical panel
+// is mounted: one per face (0-5) of '' (as is), 'mirror' (left-right),
+// 'flip' (upside down) or 'rot180'. Applied by the panel driver only, so
+// the browser preview is unaffected.
+const FACE_FIXES = ['', 'mirror', 'flip', 'rot180'];
+// Default: the four sides mirrored - a real report ("text is showing correct
+// on the website but needs mirroring left to right on the physical display").
+const DEFAULT_FACE_FIX = ['mirror', 'mirror', 'mirror', 'mirror', '', ''];
+function cleanFaceFix(a) {
+  return Array.from({ length: 6 }, (_, i) => (Array.isArray(a) && FACE_FIXES.includes(a[i]) ? a[i] : DEFAULT_FACE_FIX[i]));
+}
+
 function load() {
   try {
     const raw = readSectionJson('panel', CONFIG_PATH);
@@ -105,6 +117,7 @@ function load() {
     }
     if (!isValidPanels(parsed.panels)) parsed.panels = [...DEFAULT_CONFIG.panels];
     parsed.signal = cleanSignal(parsed.signal);
+    parsed.faceFix = cleanFaceFix(parsed.faceFix);
     return normalizeFlat(parsed);
   } catch (err) {
     // Missing file (first run) or corrupt content - fall back to defaults
@@ -117,4 +130,4 @@ function save(config) {
   writeSection('panel', config);
 }
 
-module.exports = { cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };
+module.exports = { cleanFaceFix, FACE_FIXES, cleanSignal, PANEL_TYPES, normalizeFlat, load, save, VALID_SIZES, VALID_MODES, WALL_MAX_COLS, WALL_MAX_ROWS, WALL_MAX_PANELS, isValidPanels, DEFAULT_CONFIG, CONFIG_PATH, FACE_LAYOUT, FACE_NAMES };

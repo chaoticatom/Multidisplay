@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.391';
+const APP_VERSION = '0.6.392';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -3230,6 +3230,7 @@ function syncPanelButtons() {
 function wireIdentifyPanelsButton() {
   const btn = document.getElementById('identify-panels-btn');
   if (btn) btn.addEventListener('click', () => send({ cmd: 'setIdentifyPanels', enabled: !currentState.identifyPanels }));
+  document.querySelectorAll('.face-fix-sel').forEach((sel) => sel.addEventListener('change', () => send({ cmd: 'setFaceFix', face: Number(sel.dataset.face), fix: sel.value })));
   // Panel signal: slowdown, chip type, PWM timing (applied with a restart).
   const lsb = document.getElementById('sig-lsb'), lsbVal = document.getElementById('sig-lsb-val');
   lsb?.addEventListener('input', () => { if (lsbVal) lsbVal.textContent = lsb.value + 'ns'; });
@@ -3242,6 +3243,8 @@ function wireIdentifyPanelsButton() {
 function syncIdentifyPanelsButton() {
   const btn = document.getElementById('identify-panels-btn');
   if (btn) btn.classList.toggle('active', !!currentState.identifyPanels);
+  const ff = currentState.faceFix;
+  if (ff) document.querySelectorAll('.face-fix-sel').forEach((sel) => { if (document.activeElement !== sel) sel.value = ff[Number(sel.dataset.face)] || ''; });
   const sg = currentState.panelSignal; if (!sg) return;
   const sd = document.getElementById('sig-slowdown'), ty = document.getElementById('sig-type'), lsb = document.getElementById('sig-lsb'), lv = document.getElementById('sig-lsb-val');
   if (sd && document.activeElement !== sd) sd.value = String(sg.slowdown);

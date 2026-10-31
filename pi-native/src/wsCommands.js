@@ -249,6 +249,17 @@ const COMMANDS = {
     this._broadcast(this._stateMsg());
   },
 
+  // Setup > Display > Cube face orientation: {face, fix} - applied live.
+  setFaceFix(ws, msg) {
+    const f = Number(msg.face);
+    if (!Number.isInteger(f) || f < 0 || f > 5 || !panelConfig.FACE_FIXES.includes(msg.fix)) return;
+    const a = panelConfig.cleanFaceFix(this.config.faceFix); a[f] = msg.fix;
+    this.config.faceFix = a;
+    panelConfig.save(this.config);
+    if (this.onConfigChange) this.onConfigChange(this.config);
+    this._broadcast(this._stateMsg());
+  },
+
   addPanel(ws, msg) {
     // Adds a panel at the first free cell (row-major) in the wall grid,
     // switching to wall mode if not already in it - this is the "+"
