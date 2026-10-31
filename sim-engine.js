@@ -8018,7 +8018,13 @@ var PiEngine = (() => {
             b.x = 0.5 + 0.34 * Math.sin(t * b.s + b.o);
             b.y = 0.5 + 0.38 * Math.sin(t * b.s * 0.71 + b.o * 2.1);
             b.z = flat ? 0.5 : 0.5 + 0.34 * Math.cos(t * b.s * 0.53 + b.o * 0.6);
-            b.r = (0.085 + 0.02 * Math.sin(t * 1.3 + b.o)) * (1 + bass * 0.6);
+            if (!flat) {
+              const dx = b.x - 0.5, dy = b.y - 0.5, dz = b.z - 0.5, m = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz), 1e-3), k = 0.5 / m;
+              b.x = 0.5 + dx * k;
+              b.y = 0.5 + dy * k;
+              b.z = 0.5 + dz * k;
+            }
+            b.r = ((flat ? 0.085 : 0.11) + 0.02 * Math.sin(t * 1.3 + b.o)) * (1 + bass * 0.6);
           }
         },
         pixel(p, { t }) {
@@ -8041,7 +8047,7 @@ var PiEngine = (() => {
             return [Math.min(1, base[0] + spec + under), Math.min(1, base[1] + spec * 0.9 + under * 0.4), Math.min(1, base[2] + spec * 0.8)];
           }
           const glow = Math.pow(f, 3) * 0.35;
-          const bg = hsl(hue + 0.55, 0.8, 0.04 + p.y * 0.03);
+          const bg = hsl(hue + 0.55, 0.8, 8e-3 + p.y * 0.01);
           const c = hsl(hue, 1, 0.5);
           return [bg[0] + c[0] * glow, bg[1] + c[1] * glow, bg[2] + c[2] * glow];
         }
