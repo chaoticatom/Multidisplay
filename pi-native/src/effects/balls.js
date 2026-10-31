@@ -2,8 +2,10 @@
 // bounce off the floor and walls (squashing a little on impact) and knock
 // into each other, each lit from the top-left with a sharp highlight, a
 // coloured rim and a soft shadow on the floor that tightens as it lands.
-// Bigger bounces with the music. Same on every cube side face; fills a flat
-// panel. Option: effectOptions.balls.count (1-8).
+// Bigger bounces with the music. On the cube, Cross Faces (the default) is
+// one box wrapped round the four sides - balls roll from face to face - and
+// Own Face gives every side its own copy; fills a flat panel.
+// Options: effectOptions.balls.count (1-8, per face), crossFaces.
 'use strict';
 const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
@@ -11,19 +13,19 @@ const { hsl } = require('../core');
 const st = { balls: [], n: 0 };
 const LIGHT = (() => { const l = [-0.5, -0.65, 0.6], n = Math.hypot(...l); return l.map((v) => v / n); })();
 
-function spawn(n) {
+function spawn(n, asp = 1) {
   st.n = n;
   st.balls = Array.from({ length: n }, (_, i) => ({
-    x: 0.15 + Math.random() * 0.7, y: 0.1 + Math.random() * 0.4,
+    x: (0.15 + Math.random() * 0.7) * asp, y: 0.1 + Math.random() * 0.4,
     vx: (Math.random() - 0.5) * 0.9, vy: 0,
     r: 0.07 + Math.random() * 0.05, hue: (i / n + Math.random() * 0.1) % 1, squash: 0,
   }));
 }
 
-module.exports = defineCanvasEffect({
-  render(c, { dt, core }) {
-    const n = Math.max(1, Math.min(8, Number(core.effectOptions?.balls?.count) || 5));
-    if (n !== st.n) spawn(n);
+function render(c, { dt, core }) {
+    const wrap = !!c.wrap, faces = wrap ? Math.round(c.W / c.H) : 1;
+    const n = Math.max(1, Math.min(8, Number(core.effectOptions?.balls?.count) || 5)) * faces;
+    if (n !== st.n) spawn(n, c.W / c.H);
     const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
     const step = Math.min(0.05, dt);
     const asp = c.W / c.H, floor = 0.92;
@@ -32,12 +34,15 @@ module.exports = defineCanvasEffect({
       b.vy += 1.6 * step;
       b.x += b.vx * step; b.y += b.vy * step;
       if (b.y + b.r > floor) { b.y = floor - b.r; b.squash = Math.min(0.35, Math.abs(b.vy) * 0.25); b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8); }
-      if (b.x - b.r < 0.02) { b.x = 0.02 + b.r; b.vx = Math.abs(b.vx); }
-      if (b.x + b.r > asp * 0.98) { b.x = asp * 0.98 - b.r; b.vx = -Math.abs(b.vx); }
+      if (wrap) b.x = ((b.x % asp) + asp) % asp; // round the cube: no side walls
+      else {
+        if (b.x - b.r < 0.02) { b.x = 0.02 + b.r; b.vx = Math.abs(b.vx); }
+        if (b.x + b.r > asp * 0.98) { b.x = asp * 0.98 - b.r; b.vx = -Math.abs(b.vx); }
+      }
       b.squash = Math.max(0, b.squash - step * 2.5);
     }
     for (let i = 0; i < st.balls.length; i++) for (let j = i + 1; j < st.balls.length; j++) {
-      const a = st.balls[i], b = st.balls[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
+      const a = st.balls[i], b = st.balls[j], dx0 = b.x - a.x, dx = wrap ? dx0 - asp * Math.round(dx0 / asp) : dx0, dy = b.y - a.y, d = Math.hypot(dx, dy), m = a.r + b.r;
       if (d > 0 && d < m) {
         const nx = dx / d, ny = dy / d, push = (m - d) / 2;
         a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
@@ -54,16 +59,17 @@ module.exports = defineCanvasEffect({
       else { const v = 0.03 - (y - fy) / (H - fy + 1) * 0.012; c.set(x, y, v * 0.7, v * 0.75, v * 0.9); }
     }
     // Shadows on the floor.
-    for (const b of st.balls) {
-      const h = Math.max(0, floor - (b.y + b.r)), sx = b.x * H, sr = b.r * H * (1.1 - Math.min(0.6, h)), k0 = 0.6 * (1 - Math.min(0.85, h * 1.4));
+    const shifts = wrap ? [0, -c.W, c.W] : [0]; // drawn again across the seam
+    for (const b of st.balls) for (const sh of shifts) {
+      const h = Math.max(0, floor - (b.y + b.r)), sx = b.x * H + sh, sr = b.r * H * (1.1 - Math.min(0.6, h)), k0 = 0.6 * (1 - Math.min(0.85, h * 1.4));
       for (let y = Math.floor(fy - 2); y <= fy + 3; y++) for (let x = Math.floor(sx - sr * 1.3); x <= sx + sr * 1.3; x++) {
         const dd = Math.hypot((x - sx) / (sr * 1.2), (y - fy - 0.5) / Math.max(1, sr * 0.3)), k = Math.max(0, 1 - dd * dd) * k0, o = c.get(x, y);
         if (o && k > 0) c.set(x, y, o[0] * (1 - k), o[1] * (1 - k), o[2] * (1 - k));
       }
     }
     // Spheres, back to front by size.
-    for (const b of [...st.balls].sort((p, q) => p.r - q.r)) {
-      const cx = b.x * H, cy = b.y * H, R = b.r * H, sq = b.squash;
+    for (const b of [...st.balls].sort((p, q) => p.r - q.r)) for (const shf of shifts) {
+      const cx = b.x * H + shf, cy = b.y * H, R = b.r * H, sq = b.squash;
       const rx = R * (1 + sq * 0.5), ry = R * (1 - sq * 0.4), oy = cy + R * sq * 0.4;
       const col = hsl(b.hue, 0.85, 0.5);
       for (let y = Math.floor(oy - ry - 1); y <= oy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
@@ -83,5 +89,9 @@ module.exports = defineCanvasEffect({
         c.set(x, y, o[0] * (1 - k) + (ar / cov) * k, o[1] * (1 - k) + (ag / cov) * k, o[2] * (1 - k) + (ab / cov) * k);
       }
     }
-  },
-});
+}
+
+// Two canvases: wrapped round the cube's sides, or a copy per side face.
+const cross = defineCanvasEffect({ panorama: true, render }), own = defineCanvasEffect({ render });
+module.exports = function balls(core, dt) { return (core.effectOptions?.balls?.crossFaces === false ? own : cross)(core, dt); };
+module.exports.wall = cross.wall;
