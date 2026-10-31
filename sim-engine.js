@@ -32426,17 +32426,13 @@ var PiEngine = (() => {
       var DEFAULT_CONFIG = { size: 64, mode: "2d", panels: [{ gx: 0, gy: 0 }] };
       var FACE_NAMES = ["Front", "Back", "Right", "Left", "Top", "Bottom"];
       var FACE_LAYOUT = [
-        // Front/Back swapped from the original chain:0 pos:0/pos:1 guess - a real
-        // report ("front and back are swapped": Front showed Back's content and
-        // vice versa) - the physical panel at chain 0 pos 0 is actually wired as
-        // Back, not Front.
+        // Going right round the real cube from Front (a real report): Front is
+        // out 1 pos 2, Right out 1 pos 1, Back out 2 pos 2, Left out 2 pos 1.
         { chain: 0, pos: 1 },
         // 0 Front
-        { chain: 0, pos: 0 },
-        // 1 Back
-        // Output 2 is wired HAT -> Left -> Right (a real report: "right is
-        // connected to left panel output, left is connected to hat output port 2").
         { chain: 1, pos: 1 },
+        // 1 Back
+        { chain: 0, pos: 0 },
         // 2 Right
         { chain: 1, pos: 0 },
         // 3 Left
