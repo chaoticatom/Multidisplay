@@ -25,6 +25,21 @@ function makeBolt(w) {
   })(x0, base, ground - base, 1, 0);
   return { segs, life: 0.32 + Math.random() * 0.15, age: 0, x0, re: Math.random() < 0.5 };
 }
+// One rain layer at (x, y): lines slanting to the right as they fall.
+// density: columns per scene unit; wind: sideways drift; speed: falls per
+// second; len: streak length (fraction of the cycle); odds: share of lit columns.
+function rain(x, y, t, density, wind, speed, len, odds) {
+  const u = x * density - y * density * wind * 0.25, col = Math.floor(u);
+  const h = hash2(col, 11);
+  if (h > odds) return 0;
+  const du = u - col - 0.5, across = Math.exp(-((du / 0.2) ** 2));
+  if (across < 0.05) return 0;
+  const sp = speed * (0.8 + hash2(col, 13) * 0.4);
+  const ph = (((y * 1.6 - t * sp + hash2(col, 17) * 7) % 1) + 1) % 1; // grows with y: falls downward
+  if (ph > len) return 0;
+  const a = ph / len; // 0 at the top of the tail, 1 at the drop
+  return across * a * a * smooth(1, 0.85, a);
+}
 function segDist(px, py, s) {
   const vx = s[2] - s[0], vy = s[3] - s[1], l2 = vx * vx + vy * vy || 1e-9, k = clamp(((px - s[0]) * vx + (py - s[1]) * vy) / l2);
   const dx = px - s[0] - vx * k, dy = py - s[1] - vy * k; return Math.sqrt(dx * dx + dy * dy);
@@ -52,9 +67,12 @@ module.exports = defineFieldEffect({
     const cl = dens * (0.07 + f * 0.3 + lit * 0.45);
     r += cl * 0.85; g += cl * 0.85; b += cl * 1.05;
     r += f * 0.07; g += f * 0.07; b += f * 0.11; // the sky flash
-    // Rain: slanted streaks.
-    const rx = x * 70 + y * 18, col = Math.floor(rx), ph = (((y * 3 - t * 2.2 + hash2(col, 3) * 10) % 1) + 1) % 1; // falls: y grows with t
-    if (hash2(col, 9) > 0.5 && ph < 0.2 && Math.abs(rx - col - 0.5) < 0.2) { const k = (0.08 + 0.16 * (ph / 0.2)) + f * 0.4; /* bright leading (lower) end, fading tail */ r += k; g += k; b += k * 1.2; }
+    // Rain: two layers of soft, slanting streaks - fine, dim, slower ones far
+    // off and fewer, brighter, faster ones close by. Each drop moves smoothly
+    // (no stepping), is soft-edged across its width, and has a bright lower
+    // end with a tail fading up behind it. Brighter in a flash.
+    const rn = rain(x, y, t, 90, 0.35, 1.5, 0.16, 0.6) * 0.09 + rain(x + 3.1, y, t, 45, 0.55, 2.4, 0.24, 0.45) * 0.2;
+    if (rn > 0) { const k = rn * (1 + f * 3); r += k * 0.75; g += k * 0.85; b += k * 1.05; }
     // The bolts: a white-violet core and a wide glow.
     for (const bo of st.bolts) {
       const fade = 1 - bo.age / bo.life;
