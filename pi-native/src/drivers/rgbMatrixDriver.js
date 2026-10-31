@@ -108,18 +108,22 @@ class RgbMatrixDriver {
     // The physical panels are always 64x64. A smaller logical size (8/16,
     // chosen in the UI) is scaled up to fill each panel - it used to throw,
     // which killed the render worker at startup with a saved 8x8 setting.
+    // Each row is its own chain, and the mirror runs along it: the row's
+    // rightmost panel is its first. Mirroring per row (not the whole canvas)
+    // keeps a short row reading its own panels - in an L-shape the lone
+    // bottom panel used to read the empty cell beside it and never changed.
+    const rowEnd = new Map();
+    for (const p of core.wallPanels) rowEnd.set(p.gy, Math.max(rowEnd.get(p.gy) ?? p.gx, p.gx));
     for (const p of core.wallPanels) {
       const buf = this._buildWallPanelBuffer(core, p, brightness);
-      this.matrix.drawBuffer(buf, PANEL, PANEL, p.gx * PANEL, p.gy * PANEL);
+      this.matrix.drawBuffer(buf, PANEL, PANEL, (rowEnd.get(p.gy) - p.gx) * PANEL, p.gy * PANEL);
     }
     this.matrix.sync();
   }
 
   // Wall mode gets the same left-right mirror as '2d' (real panels show it
-  // mirrored otherwise). It mirrors the whole wallW x wallH canvas, not each
-  // panel, so content moves between panels; panel offsets are unchanged.
-  // Gotcha: on a layout not symmetric about its vertical centerline (e.g. an
-  // L-shape), the mirrored column can land on an empty cell and show black.
+  // mirrored otherwise): each panel's own picture, mirrored within the panel;
+  // _renderWallFrame reverses the panel order along each row.
   _buildWallPanelBuffer(core, panel, brightness) {
     const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
@@ -127,7 +131,7 @@ class RgbMatrixDriver {
     for (let v = 0; v < PANEL; v++) {
       const sv = Math.floor((v * S) / PANEL);
       for (let u = 0; u < PANEL; u++) {
-        const srcX = wallW - 1 - (ox + Math.floor((u * S) / PANEL));
+        const srcX = ox + S - 1 - Math.floor((u * S) / PANEL);
         const c = ((oy + sv) * wallW + srcX) * 3;
         // Flipped top-to-bottom per panel, confirmed on real hardware after
         // 2D was merged into Flat (a 180 rotation left text mirrored).
