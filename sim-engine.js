@@ -440,12 +440,8 @@ var PiEngine = (() => {
         speed: 0.7,
         pixel(p, { t, core }) {
           const [x, y, w] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
-          const LEDGE = 0.14, POOL = 0.78;
+          const LEDGE = 0, POOL = 0.78;
           const hue = (x / w * 0.85 + t * 0.03) % 1, [hr, hg, hb] = hsl(hue, 0.9, 0.5);
-          if (y < LEDGE) {
-            const lip = smooth(LEDGE - 0.03, LEDGE, y) * 0.8, rock = 0.03 + 0.04 * vnoise(x * 12, y * 30);
-            return [rock + hr * lip, rock + hg * lip, rock * 1.2 + hb * lip];
-          }
           if (y < POOL) {
             const col = Math.floor(x * 40), sp = 0.7 + hash2(col, 7) * 0.6;
             const wob = 0.015 * Math.sin(y * 20 + t * 3 + col);
@@ -10899,9 +10895,9 @@ var PiEngine = (() => {
           r += f * 0.07;
           g += f * 0.07;
           b += f * 0.11;
-          const rx = x * 70 + y * 18, col = Math.floor(rx), ph = (y * 3 + t * 2.2 + hash2(col, 3) * 10) % 1;
-          if (hash2(col, 9) > 0.55 && ph < 0.12 && Math.abs(rx - col - 0.5) < 0.18) {
-            const k = 0.12 + f * 0.4;
+          const rx = x * 70 + y * 18, col = Math.floor(rx), ph = ((y * 3 - t * 2.2 + hash2(col, 3) * 10) % 1 + 1) % 1;
+          if (hash2(col, 9) > 0.5 && ph < 0.2 && Math.abs(rx - col - 0.5) < 0.2) {
+            const k = 0.08 + 0.16 * (ph / 0.2) + f * 0.4;
             r += k;
             g += k;
             b += k * 1.2;

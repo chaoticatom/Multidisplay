@@ -53,8 +53,8 @@ module.exports = defineFieldEffect({
     r += cl * 0.85; g += cl * 0.85; b += cl * 1.05;
     r += f * 0.07; g += f * 0.07; b += f * 0.11; // the sky flash
     // Rain: slanted streaks.
-    const rx = x * 70 + y * 18, col = Math.floor(rx), ph = (y * 3 + t * 2.2 + hash2(col, 3) * 10) % 1;
-    if (hash2(col, 9) > 0.55 && ph < 0.12 && Math.abs(rx - col - 0.5) < 0.18) { const k = 0.12 + f * 0.4; r += k; g += k; b += k * 1.2; }
+    const rx = x * 70 + y * 18, col = Math.floor(rx), ph = (((y * 3 - t * 2.2 + hash2(col, 3) * 10) % 1) + 1) % 1; // falls: y grows with t
+    if (hash2(col, 9) > 0.5 && ph < 0.2 && Math.abs(rx - col - 0.5) < 0.2) { const k = (0.08 + 0.16 * (ph / 0.2)) + f * 0.4; /* bright leading (lower) end, fading tail */ r += k; g += k; b += k * 1.2; }
     // The bolts: a white-violet core and a wide glow.
     for (const bo of st.bolts) {
       const fade = 1 - bo.age / bo.life;
