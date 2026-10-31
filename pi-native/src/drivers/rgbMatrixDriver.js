@@ -108,22 +108,26 @@ class RgbMatrixDriver {
     // The physical panels are always 64x64. A smaller logical size (8/16,
     // chosen in the UI) is scaled up to fill each panel - it used to throw,
     // which killed the render worker at startup with a saved 8x8 setting.
-    // Each row is its own chain, and the mirror runs along it: the row's
-    // rightmost panel is its first. Mirroring per row (not the whole canvas)
-    // keeps a short row reading its own panels - in an L-shape the lone
-    // bottom panel used to read the empty cell beside it and never changed.
-    const rowEnd = new Map();
-    for (const p of core.wallPanels) rowEnd.set(p.gy, Math.max(rowEnd.get(p.gy) ?? p.gx, p.gx));
-    for (const p of core.wallPanels) {
-      const buf = this._buildWallPanelBuffer(core, p, brightness);
-      this.matrix.drawBuffer(buf, PANEL, PANEL, (rowEnd.get(p.gy) - p.gx) * PANEL, p.gy * PANEL);
+    // Every slot on the chains is drawn, from the mirrored canvas: slot gx
+    // shows logical column cols-1-gx (the panels run right-to-left). A slot
+    // with no layout panel there - the corner of an L-shape - is drawn black;
+    // skipping it left that physical panel frozen on its last picture.
+    const cols = core.wallCols, rows = Math.max(1, ...core.wallPanels.map((p) => p.gy + 1));
+    for (let gy = 0; gy < rows; gy++) {
+      for (let gx = 0; gx < cols; gx++) {
+        const lx = cols - 1 - gx, on = core.wallPanels.some((p) => p.gx === lx && p.gy === gy);
+        const buf = on ? this._buildWallPanelBuffer(core, { gx, gy }, brightness) : this._blank();
+        this.matrix.drawBuffer(buf, PANEL, PANEL, gx * PANEL, gy * PANEL);
+      }
     }
     this.matrix.sync();
   }
 
+  _blank() { return this._blankBuf || (this._blankBuf = new Uint8Array(PANEL * PANEL * 3)); }
+
   // Wall mode gets the same left-right mirror as '2d' (real panels show it
-  // mirrored otherwise): each panel's own picture, mirrored within the panel;
-  // _renderWallFrame reverses the panel order along each row.
+  // mirrored otherwise). It mirrors the whole wallW x wallH canvas, not each
+  // panel, so content moves between panels; panel offsets are unchanged.
   _buildWallPanelBuffer(core, panel, brightness) {
     const S = core.wallPanelSize, wallW = core.wallW, wallBuf = core.wallBuf;
     const buf = this._faceBufCache;
@@ -131,7 +135,7 @@ class RgbMatrixDriver {
     for (let v = 0; v < PANEL; v++) {
       const sv = Math.floor((v * S) / PANEL);
       for (let u = 0; u < PANEL; u++) {
-        const srcX = ox + S - 1 - Math.floor((u * S) / PANEL);
+        const srcX = wallW - 1 - (ox + Math.floor((u * S) / PANEL));
         const c = ((oy + sv) * wallW + srcX) * 3;
         // Flipped top-to-bottom per panel, confirmed on real hardware after
         // 2D was merged into Flat (a 180 rotation left text mirrored).

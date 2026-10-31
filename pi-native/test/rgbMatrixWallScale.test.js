@@ -43,21 +43,17 @@ try {
   assert.strictEqual(draws[0].buf[0], 0, 'flipped: top-left dark');
   console.log('  ok - 8x8 flat layout scales up to the 64x64 panel');
 
-  // L-shape (two on top, one bottom-left): the bottom panel shows its own
-  // picture - it used to read the empty cell to its right and freeze.
+  // L-shape (two on top, one bottom-left). The panels run right-to-left,
+  // so the bottom-left panel is the second slot on its chain; the first slot
+  // (bottom-right, not in the layout) is drawn black, never left frozen.
   const L = [{ gx: 0, gy: 0 }, { gx: 1, gy: 0 }, { gx: 0, gy: 1 }];
   const cl = new Core(64); cl.panelMode = 'wall'; cl.initWall(L, 64);
   const dl = new RgbMatrixDriver({ mode: 'wall', panels: L });
   for (let y = 64; y < 128; y++) for (let x = 0; x < 64; x++) cl.setWallPixel(x, y, 0, 1, 0);
   draws.length = 0; dl.renderFrame(cl, 1);
-  const bottom = draws.find((q) => q.y === 64);
-  assert.ok(bottom && bottom.x === 0, 'bottom panel is the first on its chain');
-  assert.ok(bottom.buf[1] > 0, 'bottom panel shows its own (green) picture');
-  // A full row keeps the old order: the left panel's picture goes to the second slot.
-  for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) cl.setWallPixel(x, y, 1, 0, 0);
-  draws.length = 0; dl.renderFrame(cl, 1);
-  assert.ok(draws.find((q) => q.y === 0 && q.x === 64).buf[0] > 0, 'top row: left picture in slot 2');
-  assert.strictEqual(draws.find((q) => q.y === 0 && q.x === 0).buf[0], 0, 'top row: slot 1 has the right picture');
+  assert.strictEqual(draws.length, 4, 'every slot on the chains is drawn');
+  assert.ok(draws.find((q) => q.y === 64 && q.x === 64).buf[1] > 0, 'bottom-left picture in slot 2');
+  assert.ok(draws.find((q) => q.y === 64 && q.x === 0).buf.every((v) => v === 0), 'empty corner slot drawn black');
   console.log('  ok - L-shaped layout: every panel shows its own picture');
 } catch (e) {
   console.error('  FAIL -', e.message);
