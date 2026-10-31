@@ -101,9 +101,8 @@ function cleanSignal(s) {
 // 'flip' (upside down) or 'rot180'. Applied by the panel driver only, so
 // the browser preview is unaffected.
 const FACE_FIXES = ['', 'mirror', 'flip', 'rot180'];
-// Default: the four sides mirrored - a real report ("text is showing correct
-// on the website but needs mirroring left to right on the physical display").
-const DEFAULT_FACE_FIX = ['mirror', 'mirror', 'mirror', 'mirror', '', ''];
+// Default: as is - effects read correctly on the real cube without a fix.
+const DEFAULT_FACE_FIX = ['', '', '', '', '', ''];
 function cleanFaceFix(a) {
   return Array.from({ length: 6 }, (_, i) => (Array.isArray(a) && FACE_FIXES.includes(a[i]) ? a[i] : DEFAULT_FACE_FIX[i]));
 }

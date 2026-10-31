@@ -78,6 +78,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   // something that should ever be composited with real content.
   // Read by the panel driver: per-face orientation fixes for the real cube.
   core.faceFix = config.faceFix || require('./panelConfig').cleanFaceFix(null);
+  core.identifying = !!state.identifyPanels; // the side labels get their own turn on the panels
   if (state.identifyPanels) {
     renderIdentify(core, config);
     return;

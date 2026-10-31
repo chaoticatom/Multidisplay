@@ -187,6 +187,10 @@ class RgbMatrixDriver {
         const fix = layout && core.faceFix ? core.faceFix[face] : '';
         if (fix === 'mirror' || fix === 'rot180') su = SIZE - 1 - su;
         if (fix === 'flip' || fix === 'rot180') sv = SIZE - 1 - sv;
+        // Panel numbers on the four sides need turning on the real cube while
+        // effects don't - a real report - so only they get it (the preview
+        // already reads them correctly).
+        if (core.identifying && layout && face < 4) su = SIZE - 1 - su;
         const led = faceMap[sv * SIZE + su];
         const o = (v * SIZE + u) * 3;
         if (led < 0) {

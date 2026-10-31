@@ -32479,7 +32479,7 @@ var PiEngine = (() => {
         };
       }
       var FACE_FIXES = ["", "mirror", "flip", "rot180"];
-      var DEFAULT_FACE_FIX = ["mirror", "mirror", "mirror", "mirror", "", ""];
+      var DEFAULT_FACE_FIX = ["", "", "", "", "", ""];
       function cleanFaceFix(a) {
         return Array.from({ length: 6 }, (_, i) => Array.isArray(a) && FACE_FIXES.includes(a[i]) ? a[i] : DEFAULT_FACE_FIX[i]);
       }
@@ -33004,6 +33004,7 @@ var PiEngine = (() => {
         core.customCubeFaces = state.customCube && state.customCube.faces;
         core.overlaysState = state.overlays;
         core.faceFix = config.faceFix || require_panelConfig().cleanFaceFix(null);
+        core.identifying = !!state.identifyPanels;
         if (state.identifyPanels) {
           renderIdentify(core, config);
           return;
