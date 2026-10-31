@@ -35,8 +35,10 @@ const FACE_LAYOUT = [
   // Back, not Front.
   { chain: 0, pos: 1 }, // 0 Front
   { chain: 0, pos: 0 }, // 1 Back
-  { chain: 1, pos: 0 }, // 2 Right
-  { chain: 1, pos: 1 }, // 3 Left
+  // Output 2 is wired HAT -> Left -> Right (a real report: "right is
+  // connected to left panel output, left is connected to hat output port 2").
+  { chain: 1, pos: 1 }, // 2 Right
+  { chain: 1, pos: 0 }, // 3 Left
   // rotateCW90 - a real report: "on cube mode, the top panel is reversed,
   // the flow from side panels does not flow to top correctly" - a 180°
   // flip was tried first and wasn't right; a single 90° clockwise turn
