@@ -19350,11 +19350,11 @@ var PiEngine = (() => {
         neon: () => [[1, 0.1, 0.8], [0.1, 1, 0.9], [0.6, 1, 0.1], [1, 0.9, 0.1]][Math.floor(Math.random() * 4)]
       };
       var STYLE_TYPES = {
-        mixed: ["peony", "chrys", "willow", "ring", "heart", "palm", "crossette", "crackle"],
-        classic: ["peony", "chrys"],
-        willow: ["willow", "palm"],
-        shapes: ["ring", "heart", "star"],
-        crackle: ["crackle", "crossette"]
+        mixed: ["peony", "pistil", "dahlia", "brocade", "willow", "kamuro", "ring", "palm", "crossette", "strobe", "crackle"],
+        classic: ["peony", "pistil", "dahlia", "willow"],
+        willow: ["willow", "brocade", "kamuro", "palm"],
+        shapes: ["ring", "star"],
+        crackle: ["crackle", "crossette", "strobe"]
       };
       var RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1, 0.8, 0.6, 0.45, 0.32];
       var newState = () => ({ lastFinale: void 0, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
@@ -19410,12 +19410,33 @@ var PiEngine = (() => {
             st.flashX = r.x / W;
             if (o.partySfx && core.sfx) core.sfx.push("boom");
             const n = Math.round(60 * Math.min(2, sz));
+            const sph = (v, extra) => {
+              const a = Math.random() * 6.283, k = Math.sqrt(1 - (Math.random() * 2 - 1) ** 2);
+              star(Math.cos(a) * v * k, Math.sin(a) * v * k, extra);
+            };
+            const gold = [1, 0.72, 0.28];
             switch (r.type) {
               case "peony":
                 for (let i = 0; i < n; i++) {
                   const a = Math.random() * 6.283, v = (14 + Math.random() * 6) * sz;
                   star(Math.cos(a) * v, Math.sin(a) * v);
                 }
+                break;
+              case "pistil":
+                for (let i = 0; i < n; i++) sph((14 + Math.random() * 3) * sz);
+                for (let i = 0; i < n * 0.4; i++) sph((6 + Math.random() * 2) * sz, { col: col2, decay: 0.75 });
+                break;
+              case "dahlia":
+                for (let i = 0; i < n * 0.45; i++) sph((17 + Math.random() * 3) * sz, { decay: 0.4 + Math.random() * 0.15, drag: 0.975 });
+                break;
+              case "brocade":
+                for (let i = 0; i < n; i++) sph((13 + Math.random() * 4) * sz, { col: gold, twinkle: 1, decay: 0.32, drag: 0.955, g: 14 * sz });
+                break;
+              case "kamuro":
+                for (let i = 0; i < n * 1.3; i++) sph((12 + Math.random() * 3) * sz, { col: [1, 0.85, 0.55], twinkle: 1, decay: 0.22 + Math.random() * 0.08, drag: 0.94, g: 11 * sz });
+                break;
+              case "strobe":
+                for (let i = 0; i < n * 0.7; i++) sph((12 + Math.random() * 6) * sz, { col: [1, 1, 1], twinkle: 1, decay: 0.45, drag: 0.97 });
                 break;
               case "chrys":
                 for (let i = 0; i < n; i++) {
