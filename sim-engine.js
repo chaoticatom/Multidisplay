@@ -514,10 +514,18 @@ var PiEngine = (() => {
               return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]];
             }
           };
+          c.wrap = panorama;
           render(c, ctx);
           if (caps) {
             caps(core, 4, core.t);
             caps(core, 5, core.t);
+          } else {
+            for (const f of [4, 5]) for (const i of core.faceMap[f]) if (i >= 0) {
+              const o = i * 3;
+              core.colBuf[o] = 0;
+              core.colBuf[o + 1] = 0;
+              core.colBuf[o + 2] = 0;
+            }
           }
         }
         cube.wall = function wall(core, dt) {
@@ -528,6 +536,7 @@ var PiEngine = (() => {
           const c = {
             W,
             H,
+            wrap: false,
             set(x, y, r, g, b) {
               core.setWallPixel(Math.round(x), Math.round(y), r, g, b);
             },
@@ -20415,19 +20424,26 @@ var PiEngine = (() => {
         st.drainT = 0;
       }
       module.exports = defineCanvasEffect({
+        panorama: true,
         render(c, { t, dt }) {
           const W = c.W, H = c.H;
-          if (st.W !== W || st.H !== H || !st.g) reset(W, H);
+          if (st.W !== W || st.H !== H || !st.g) {
+            reset(W, H);
+            const n2 = Math.max(3, Math.round(W / H * 1.5));
+            st.spouts = Array.from({ length: n2 }, (_, i) => ({ x: (i + 0.5) / n2, d: i & 1 ? -1 : 1, s: 0.03 + Math.random() * 0.05 }));
+          }
+          const wrap = !!c.wrap, wx = (x) => wrap ? (x + W) % W : x;
           const { g, col } = st;
           if (st.phase === "pour") {
             for (const sp of st.spouts) {
               sp.x += sp.d * dt * sp.s;
-              if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1;
+              if (wrap) sp.x = (sp.x + 1) % 1;
+              else if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1;
             }
             st.acc += dt * W * 3;
             for (; st.acc >= 1; st.acc--) {
               const si = Math.floor(Math.random() * st.spouts.length), sx = Math.round(st.spouts[si].x * (W - 1));
-              const x = Math.max(0, Math.min(W - 1, sx + Math.round((Math.random() - 0.5) * 2)));
+              const jx = sx + Math.round((Math.random() - 0.5) * 2), x = wrap ? wx(jx) : Math.max(0, Math.min(W - 1, jx));
               if (!g[x]) {
                 g[x] = 1;
                 const band = Math.floor(t / 4) * 0.13 + st.hue + si * 0.33;
@@ -20440,7 +20456,7 @@ var PiEngine = (() => {
           }
           const steps = Math.max(1, Math.round(dt * 90));
           const open = st.phase === "drain" ? Math.min(0.5, 0.1 + st.drainT * 0.08) : 0.1;
-          const holeL = Math.floor(W * (0.5 - open)), holeR = Math.ceil(W * (0.5 + open));
+          const span = wrap ? H : W, holeL = Math.floor(span * (0.5 - open)), holeR = Math.ceil(span * (0.5 + open));
           for (let s = 0; s < steps; s++) {
             for (let y = H - 1; y >= 0; y--) {
               const ltr = y + s & 1;
@@ -20448,7 +20464,8 @@ var PiEngine = (() => {
                 const x = ltr ? i : W - 1 - i, p = y * W + x;
                 if (!g[p]) continue;
                 if (y === H - 1) {
-                  if (st.phase === "drain" && x >= holeL && x < holeR) g[p] = 0;
+                  const hx = x % span;
+                  if (st.phase === "drain" && hx >= holeL && hx < holeR) g[p] = 0;
                   continue;
                 }
                 const move = (q) => {
@@ -20465,9 +20482,9 @@ var PiEngine = (() => {
                 }
                 const d1 = Math.random() < 0.5 ? -1 : 1;
                 for (const d of [d1, -d1]) {
-                  const nx = x + d;
-                  if (nx >= 0 && nx < W && !g[below + d] && !g[p + d]) {
-                    move(below + d);
+                  const nx = wx(x + d);
+                  if (nx >= 0 && nx < W && !g[(y + 1) * W + nx] && !g[y * W + nx]) {
+                    move((y + 1) * W + nx);
                     break;
                   }
                 }
@@ -20496,7 +20513,8 @@ var PiEngine = (() => {
             }
             let depth = 0;
             for (let k = 1; k <= 4 && y - k >= 0 && g[p - k * W]; k++) depth++;
-            const top = depth === 0, sideL = x > 0 && !g[p - 1], sideR = x < W - 1 && !g[p + 1];
+            const l = wx(x - 1), r = wx(x + 1);
+            const top = depth === 0, sideL = l >= 0 && !g[y * W + l], sideR = r < W && !g[y * W + r];
             let sh = 1 - depth * 0.13;
             if (top) sh = 1.35;
             else if (sideL) sh += 0.12;

@@ -46,8 +46,14 @@ function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
         return i < 0 ? null : [core.colBuf[i * 3], core.colBuf[i * 3 + 1], core.colBuf[i * 3 + 2]];
       },
     };
+    c.wrap = panorama; // the canvas runs round the cube: x wraps
     render(c, ctx);
     if (caps) { caps(core, 4, core.t); caps(core, 5, core.t); }
+    else {
+      // No caps: top and bottom go dark - left alone they kept the last
+      // effect's picture (a real report: "the top screen is wrong").
+      for (const f of [4, 5]) for (const i of core.faceMap[f]) if (i >= 0) { const o = i * 3; core.colBuf[o] = 0; core.colBuf[o + 1] = 0; core.colBuf[o + 2] = 0; }
+    }
   }
   cube.wall = function wall(core, dt) {
     core.t += dt * speed;
@@ -55,7 +61,7 @@ function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
     Object.assign(ctx, { t: core.t, dt, core });
     const W = core.wallW, H = core.wallH, buf = core.wallBuf;
     const c = {
-      W, H,
+      W, H, wrap: false,
       set(x, y, r, g, b) { core.setWallPixel(Math.round(x), Math.round(y), r, g, b); },
       add(x, y, r, g, b) {
         x = Math.round(x); y = Math.round(y);

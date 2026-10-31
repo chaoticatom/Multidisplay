@@ -4,8 +4,9 @@
 // piling up in striped dunes. Each grain is shaded - grains on the surface
 // catch the light from above, buried ones sit in shadow - so the heap reads
 // as a 3D pile. When the box is nearly full a gap opens in the floor and it
-// all drains away, then the pouring starts again with new colours. Same on
-// every cube side face; fills a flat panel.
+// all drains away, then the pouring starts again with new colours. On the
+// cube it's one box wrapped round the four sides - sand slides from one face
+// onto the next; fills a flat panel.
 'use strict';
 const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
@@ -18,17 +19,27 @@ function reset(W, H) {
 }
 
 module.exports = defineCanvasEffect({
+  panorama: true,
   render(c, { t, dt }) {
     const W = c.W, H = c.H;
-    if (st.W !== W || st.H !== H || !st.g) reset(W, H);
+    if (st.W !== W || st.H !== H || !st.g) {
+      reset(W, H);
+      // One spout per face's worth of width (at least three).
+      const n = Math.max(3, Math.round(W / H * 1.5));
+      st.spouts = Array.from({ length: n }, (_, i) => ({ x: (i + 0.5) / n, d: i & 1 ? -1 : 1, s: 0.03 + Math.random() * 0.05 }));
+    }
+    const wrap = !!c.wrap, wx = (x) => (wrap ? (x + W) % W : x);
     const { g, col } = st;
     // Pour: a few grains per frame from the moving spout, colour drifting in bands.
     if (st.phase === 'pour') {
-      for (const sp of st.spouts) { sp.x += sp.d * dt * sp.s; if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1; }
+      for (const sp of st.spouts) {
+        sp.x += sp.d * dt * sp.s;
+        if (wrap) sp.x = (sp.x + 1) % 1; else if (sp.x > 0.92 || sp.x < 0.08) sp.d *= -1;
+      }
       st.acc += dt * W * 3; // grains per second scale with the width
       for (; st.acc >= 1; st.acc--) {
         const si = Math.floor(Math.random() * st.spouts.length), sx = Math.round(st.spouts[si].x * (W - 1));
-        const x = Math.max(0, Math.min(W - 1, sx + Math.round((Math.random() - 0.5) * 2)));
+        const jx = sx + Math.round((Math.random() - 0.5) * 2), x = wrap ? wx(jx) : Math.max(0, Math.min(W - 1, jx));
         if (!g[x]) {
           g[x] = 1;
           const band = Math.floor(t / 4) * 0.13 + st.hue + si * 0.33;
@@ -41,7 +52,8 @@ module.exports = defineCanvasEffect({
     const steps = Math.max(1, Math.round(dt * 90));
     // The drain opens wider as it runs, so the box empties in a few seconds.
     const open = st.phase === 'drain' ? Math.min(0.5, 0.1 + st.drainT * 0.08) : 0.1;
-    const holeL = Math.floor(W * (0.5 - open)), holeR = Math.ceil(W * (0.5 + open));
+    // The hole is in the middle of each face's floor (of the panel on a wall).
+    const span = wrap ? H : W, holeL = Math.floor(span * (0.5 - open)), holeR = Math.ceil(span * (0.5 + open));
     for (let s = 0; s < steps; s++) {
       for (let y = H - 1; y >= 0; y--) {
         const ltr = (y + s) & 1;
@@ -49,7 +61,8 @@ module.exports = defineCanvasEffect({
           const x = ltr ? i : W - 1 - i, p = y * W + x;
           if (!g[p]) continue;
           if (y === H - 1) {
-            if (st.phase === 'drain' && x >= holeL && x < holeR) g[p] = 0; // falls out
+            const hx = x % span;
+            if (st.phase === 'drain' && hx >= holeL && hx < holeR) g[p] = 0; // falls out
             continue;
           }
           const move = (q) => { g[q] = 1; g[p] = 0; col[q * 3] = col[p * 3]; col[q * 3 + 1] = col[p * 3 + 1]; col[q * 3 + 2] = col[p * 3 + 2]; };
@@ -57,8 +70,8 @@ module.exports = defineCanvasEffect({
           if (!g[below]) { move(below); continue; }
           const d1 = Math.random() < 0.5 ? -1 : 1;
           for (const d of [d1, -d1]) {
-            const nx = x + d;
-            if (nx >= 0 && nx < W && !g[below + d] && !g[p + d]) { move(below + d); break; }
+            const nx = wx(x + d);
+            if (nx >= 0 && nx < W && !g[(y + 1) * W + nx] && !g[y * W + nx]) { move((y + 1) * W + nx); break; }
           }
         }
       }
@@ -73,7 +86,8 @@ module.exports = defineCanvasEffect({
       if (!g[p]) { const v = 0.015 + (y / H) * 0.02; c.set(x, y, v * 0.8, v * 0.8, v * 1.1); continue; }
       // How deep under the surface: count grains straight above (up to 4).
       let depth = 0; for (let k = 1; k <= 4 && y - k >= 0 && g[p - k * W]; k++) depth++;
-      const top = depth === 0, sideL = x > 0 && !g[p - 1], sideR = x < W - 1 && !g[p + 1];
+      const l = wx(x - 1), r = wx(x + 1);
+      const top = depth === 0, sideL = l >= 0 && !g[y * W + l], sideR = r < W && !g[y * W + r];
       let sh = 1.0 - depth * 0.13;
       if (top) sh = 1.35; else if (sideL) sh += 0.12; else if (sideR) sh -= 0.12;
       const grit = 0.92 + 0.16 * ((x * 13 + y * 7) % 5) / 4;
