@@ -44,17 +44,6 @@ function renderIdentifyCube(core, config) {
       ? ['PANEL 1']
       : [FACE_NAMES[face], 'OUT ' + (FACE_LAYOUT[face].chain + 1), 'POS ' + (FACE_LAYOUT[face].pos + 1)];
     drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
-    // The side labels read upside down on the real cube while effects are
-    // right - a real report - so only the labels are turned 180.
-    if (config.mode !== '2d' && face < 4) rotateFace180(core, face);
-  }
-}
-function rotateFace180(core, face) {
-  const S = core.SIZE, map = core.faceMap[face], c = core.colBuf, n = S * S;
-  for (let i = 0; i < n >> 1; i++) {
-    const a = map[i], b = map[n - 1 - i];
-    if (a < 0 || b < 0) continue;
-    for (let k = 0; k < 3; k++) { const t = c[a * 3 + k]; c[a * 3 + k] = c[b * 3 + k]; c[b * 3 + k] = t; }
   }
 }
 

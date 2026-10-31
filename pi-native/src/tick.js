@@ -76,6 +76,9 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   // Bypasses everything else (effect/alarms/overlays) entirely, same as the
   // state.blank branch below, since it's a wiring-diagnostic view, not
   // something that should ever be composited with real content.
+  // Read by the panel driver: the cube's side labels need turning on the
+  // real panels only (see rgbMatrixDriver's _buildFaceBuffer).
+  core.identifying = !!state.identifyPanels;
   if (state.identifyPanels) {
     renderIdentify(core, config);
     return;

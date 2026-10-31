@@ -32499,19 +32499,6 @@ var PiEngine = (() => {
         for (let face = 0; face < faceCount; face++) {
           const lines = config.mode === "2d" ? ["PANEL 1"] : [FACE_NAMES[face], "OUT " + (FACE_LAYOUT[face].chain + 1), "POS " + (FACE_LAYOUT[face].pos + 1)];
           drawLinesCentered3x5(core, face, lines, pickScale(lines, core.SIZE, 4), 0.2, 1, 0.4);
-          if (config.mode !== "2d" && face < 4) rotateFace180(core, face);
-        }
-      }
-      function rotateFace180(core, face) {
-        const S = core.SIZE, map = core.faceMap[face], c = core.colBuf, n = S * S;
-        for (let i = 0; i < n >> 1; i++) {
-          const a = map[i], b = map[n - 1 - i];
-          if (a < 0 || b < 0) continue;
-          for (let k = 0; k < 3; k++) {
-            const t = c[a * 3 + k];
-            c[a * 3 + k] = c[b * 3 + k];
-            c[b * 3 + k] = t;
-          }
         }
       }
       function renderIdentifyWall(core, config) {
@@ -32988,6 +32975,7 @@ var PiEngine = (() => {
         core.tz = state.prefs && state.prefs.tz;
         core.customCubeFaces = state.customCube && state.customCube.faces;
         core.overlaysState = state.overlays;
+        core.identifying = !!state.identifyPanels;
         if (state.identifyPanels) {
           renderIdentify(core, config);
           return;
