@@ -19360,8 +19360,9 @@ var PiEngine = (() => {
       var newState = () => ({ lastFinale: void 0, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
       var lastState = newState();
       module.exports = defineCanvasEffect({
+        panorama: true,
         render(c, { t, dt, core }) {
-          const W = c.W, H = c.H, o = core.effectOptions && core.effectOptions.fireworks || {};
+          const W = c.W, H = c.H, wrap = !!c.wrap, faces = wrap ? Math.round(W / H) : 1, span = wrap ? H : W, o = core.effectOptions && core.effectOptions.fireworks || {};
           const st = core._fireworks || (core._fireworks = newState());
           lastState = st;
           if (st.W !== W || st.H !== H) {
@@ -19389,6 +19390,7 @@ var PiEngine = (() => {
           const add = (x, y, r, g, b) => {
             x = Math.round(x);
             y = Math.round(y);
+            if (wrap) x = (x % W + W) % W;
             if (x < 0 || y < 0 || x >= W || y >= H) return;
             const i = (y * W + x) * 3;
             buf[i] += r;
@@ -19466,13 +19468,13 @@ var PiEngine = (() => {
                 }
                 break;
               case "text": {
-                const word = opt.text || "WOW", pitch = Math.max(1, Math.min(3, Math.floor((W - 4) / (word.length * 6))));
+                const word = opt.text || "WOW", pitch = Math.max(1, Math.min(3, Math.floor((span - 4) / (word.length * 6))));
                 const total = word.length * 6 * pitch;
                 [...word].forEach((ch, k) => {
                   const rows = FONT_5x7.get(ch) || [], lc = PAL[opt.palette]();
                   rows.forEach((bits, yy) => {
                     for (let xx = 0; xx < 5; xx++) if (bits >> 4 - xx & 1) {
-                      const px = W / 2 - total / 2 + (k * 6 + xx) * pitch, py = r.y + (yy - 3) * pitch;
+                      const px = (wrap ? r.tx : W / 2) - total / 2 + (k * 6 + xx) * pitch, py = r.y + (yy - 3) * pitch;
                       st.stars.push({ x: r.x, y: r.y, vx: (px - r.x) * 10.8, vy: (py - r.y) * 10.8, life: 1.25, decay: 0.4, col: lc, trail: 0, drag: 0.82, g: 0.6, twinkle: 0 });
                     }
                   });
@@ -19495,10 +19497,10 @@ var PiEngine = (() => {
             if (opt.mode === "sync") {
               const types = STYLE_TYPES[opt.style], type = types[Math.floor(Math.random() * types.length)], k = 2 + Math.floor(Math.random() * 3);
               for (let i = 0; i < k; i++) launch(type, W * (i + 0.5) / k);
-              st.next = opt.rate * 2.2;
+              st.next = opt.rate * 2.2 / faces;
             } else {
               launch();
-              st.next = opt.rate * (0.5 + Math.random());
+              st.next = opt.rate * (0.5 + Math.random()) / faces;
             }
           }
           if (o.finaleToken !== void 0 && o.finaleToken !== st.lastFinale) {
@@ -19519,7 +19521,7 @@ var PiEngine = (() => {
           }
           if (opt.text && (st.textT -= dt) <= 0) {
             st.textT = 14;
-            launch("text", W / 2);
+            launch("text", wrap ? span * (Math.floor(Math.random() * faces) + 0.5) : W / 2);
           }
           for (const r of st.rockets) {
             r.y += r.vy * dt;
@@ -19603,8 +19605,10 @@ var PiEngine = (() => {
             for (let y = horizon; y < H; y++) {
               const d = y - horizon, sy = Math.round(horizon - 1 - d * 1.15);
               for (let x = 0; x < W; x++) {
-                const i = (y * W + x) * 3, sx = Math.round(x + Math.sin(y * 1.3 + t * 3) * (1 + d * 0.08));
+                const i = (y * W + x) * 3;
+                let sx = Math.round(x + Math.sin(y * 1.3 + t * 3) * (1 + d * 0.08));
                 let r = 4e-3, g = 0.01, b = 0.03 + d * 2e-3;
+                if (wrap) sx = (sx % W + W) % W;
                 if (sy >= 0 && sx >= 0 && sx < W) {
                   const q = (sy * W + sx) * 3, k = 0.45 * (1 - d / (H - horizon + 4));
                   r += buf[q] * k;

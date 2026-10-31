@@ -3,7 +3,8 @@
 // palm, crossette, crackle), plus star shapes and text spelled in sparks.
 // Each burst lights the sky, the drifting smoke and the backdrop (water
 // with reflections, a city skyline or open sky); stars fade through warm
-// colours as they die. Same on every cube side face; fills a flat panel.
+// colours as they die. On the cube it's one sky wrapped round the four sides
+// (bursts spill across the corners); fills a flat panel.
 //
 // Options (effectOptions.fireworks):
 //   mode      'random' | 'sync' (salvos of matching shells) | 'mic' (launch on the beat)
@@ -40,8 +41,9 @@ const newState = () => ({ lastFinale: undefined, W: 0, H: 0, buf: null, smoke: n
 let lastState = newState();
 
 module.exports = defineCanvasEffect({
+  panorama: true,
   render(c, { t, dt, core }) {
-    const W = c.W, H = c.H, o = (core.effectOptions && core.effectOptions.fireworks) || {};
+    const W = c.W, H = c.H, wrap = !!c.wrap, faces = wrap ? Math.round(W / H) : 1, span = wrap ? H : W, o = (core.effectOptions && core.effectOptions.fireworks) || {};
     const st = core._fireworks || (core._fireworks = newState());
     lastState = st;
     if (st.W !== W || st.H !== H) { st.W = W; st.H = H; st.buf = new Float32Array(W * H * 3); st.smoke = new Float32Array(W * H); st.rockets = []; st.stars = []; }
@@ -61,6 +63,7 @@ module.exports = defineCanvasEffect({
     const { buf, smoke } = st;
     const add = (x, y, r, g, b) => {
       x = Math.round(x); y = Math.round(y);
+      if (wrap) x = ((x % W) + W) % W; // round the cube
       if (x < 0 || y < 0 || x >= W || y >= H) return;
       const i = (y * W + x) * 3; buf[i] += r; buf[i + 1] += g; buf[i + 2] += b;
     };
@@ -88,12 +91,12 @@ module.exports = defineCanvasEffect({
         case 'crackle': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (10 + Math.random() * 10) * sz; star(Math.cos(a) * v, Math.sin(a) * v, { col: [1, 0.95, 0.85], twinkle: 1, decay: 0.7 }); } break;
         case 'text': {
           // The word in 5x7 letters, each lit pixel a star that holds still, then sags and fades.
-          const word = opt.text || 'WOW', pitch = Math.max(1, Math.min(3, Math.floor((W - 4) / (word.length * 6))));
+          const word = opt.text || 'WOW', pitch = Math.max(1, Math.min(3, Math.floor((span - 4) / (word.length * 6)))); // fits one face on the cube
           const total = word.length * 6 * pitch;
           [...word].forEach((ch, k) => {
             const rows = FONT_5x7.get(ch) || [], lc = PAL[opt.palette](); // one colour per letter
             rows.forEach((bits, yy) => { for (let xx = 0; xx < 5; xx++) if ((bits >> (4 - xx)) & 1) {
-              const px = W / 2 - total / 2 + (k * 6 + xx) * pitch, py = r.y + (yy - 3) * pitch;
+              const px = (wrap ? r.tx : W / 2) - total / 2 + (k * 6 + xx) * pitch, py = r.y + (yy - 3) * pitch;
               // With drag 0.82 per 60th of a second a star travels v/10.8 in total, so
               // this speed lands each one on its letter pixel.
               st.stars.push({ x: r.x, y: r.y, vx: (px - r.x) * 10.8, vy: (py - r.y) * 10.8, life: 1.25, decay: 0.4, col: lc, trail: 0, drag: 0.82, g: 0.6, twinkle: 0 });
@@ -113,15 +116,15 @@ module.exports = defineCanvasEffect({
       if (opt.mode === 'sync') { // a salvo: matching shells across the sky
         const types = STYLE_TYPES[opt.style], type = types[Math.floor(Math.random() * types.length)], k = 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < k; i++) launch(type, W * (i + 0.5) / k);
-        st.next = opt.rate * 2.2;
-      } else { launch(); st.next = opt.rate * (0.5 + Math.random()); }
+        st.next = opt.rate * 2.2 / faces;
+      } else { launch(); st.next = opt.rate * (0.5 + Math.random()) / faces; } // as many per face as on one panel
     }
     // A celebration (src/autoShow.js) bumps finaleToken to start a finale now.
     if (o.finaleToken !== undefined && o.finaleToken !== st.lastFinale) { if (st.lastFinale !== undefined || Date.now() - o.finaleToken < 60000) st.finaleLeft = 30; st.lastFinale = o.finaleToken; }
     if (opt.finale === '2') { st.finaleT += dt; if (st.finaleT > 120) { st.finaleT = 0; st.finaleLeft = 22; } }
     if (opt.finale === 'beat' && bigBeat && beat > 0.95 && st.finaleLeft <= 0 && Math.random() < 0.15) st.finaleLeft = 18;
     if (st.finaleLeft > 0 && Math.random() < dt * 14) { launch(); st.finaleLeft--; }
-    if (opt.text && (st.textT -= dt) <= 0) { st.textT = 14; launch('text', W / 2); }
+    if (opt.text && (st.textT -= dt) <= 0) { st.textT = 14; launch('text', wrap ? span * (Math.floor(Math.random() * faces) + 0.5) : W / 2); }
 
     // Physics.
     for (const r of st.rockets) {
@@ -174,8 +177,10 @@ module.exports = defineCanvasEffect({
       for (let y = horizon; y < H; y++) {
         const d = y - horizon, sy = Math.round(horizon - 1 - d * 1.15);
         for (let x = 0; x < W; x++) {
-          const i = (y * W + x) * 3, sx = Math.round(x + Math.sin(y * 1.3 + t * 3) * (1 + d * 0.08));
+          const i = (y * W + x) * 3;
+          let sx = Math.round(x + Math.sin(y * 1.3 + t * 3) * (1 + d * 0.08));
           let r = 0.004, g = 0.01, b = 0.03 + d * 0.002;
+          if (wrap) sx = ((sx % W) + W) % W;
           if (sy >= 0 && sx >= 0 && sx < W) { const q = (sy * W + sx) * 3, k = 0.45 * (1 - d / (H - horizon + 4)); r += buf[q] * k; g += buf[q + 1] * k; b += buf[q + 2] * k; }
           buf[i] = r; buf[i + 1] = g; buf[i + 2] = b;
         }
