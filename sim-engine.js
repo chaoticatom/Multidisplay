@@ -32412,13 +32412,15 @@ var PiEngine = (() => {
         // report ("front and back are swapped": Front showed Back's content and
         // vice versa) - the physical panel at chain 0 pos 0 is actually wired as
         // Back, not Front.
-        { chain: 0, pos: 1 },
+        // The four sides are turned 180 - a real report: "in 3d cube mode, all
+        // side displays need to rotate 180 degrees".
+        { chain: 0, pos: 1, rotate180: true },
         // 0 Front
-        { chain: 0, pos: 0 },
+        { chain: 0, pos: 0, rotate180: true },
         // 1 Back
-        { chain: 1, pos: 0 },
+        { chain: 1, pos: 0, rotate180: true },
         // 2 Right
-        { chain: 1, pos: 1 },
+        { chain: 1, pos: 1, rotate180: true },
         // 3 Left
         // rotateCW90 - a real report: "on cube mode, the top panel is reversed,
         // the flow from side panels does not flow to top correctly" - a 180°

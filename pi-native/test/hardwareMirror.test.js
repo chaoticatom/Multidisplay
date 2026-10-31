@@ -66,7 +66,10 @@ async function run() {
     const d = new RgbMatrixDriver({ mode: 'cube' });
     d.renderFrame(core, 1.0);
     const buf = d.matrix.calls[0].buf; // face 0
-    assert.deepStrictEqual(px(buf, 64, 0, 0), [1, 0, 0].map((v) => v * 255), 'cube mode face 0 should NOT be mirrored - left stays left');
+    // The side faces are turned 180 for how they're mounted: the left half
+    // (red) lands on the right, and nothing else mirrors it.
+    assert.deepStrictEqual(px(buf, 64, 63, 63), [1, 0, 0].map((v) => v * 255), 'cube face 0 turned 180: left half shows bottom-right');
+    assert.deepStrictEqual(px(buf, 64, 0, 0), [0, 0, 1].map((v) => v * 255), 'cube face 0 turned 180: right half shows top-left');
   });
 
   await test('wall mode: the whole assembled multi-panel canvas is mirrored, not each panel in place', () => {
