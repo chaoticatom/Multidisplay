@@ -20488,7 +20488,33 @@ var PiEngine = (() => {
           }
         }
       }
-      var cross = defineCanvasEffect({ panorama: true, render });
+      var SIDE = [0, 2, 1, 3];
+      function topView(core, face) {
+        if (face !== 4) return;
+        const S = core.SIZE, map = core.faceMap[4], X = core.surfX, Z = core.surfZ, cb = core.colBuf;
+        for (const i of map) if (i >= 0) {
+          const o = i * 3, v = 6e-3;
+          cb[o] = v * 0.6;
+          cb[o + 1] = v * 0.7;
+          cb[o + 2] = v;
+        }
+        for (const b of st.balls) {
+          const col = (Math.round(b.x * S) % (4 * S) + 4 * S) % (4 * S), f = SIDE[col / S | 0], led = core.faceMap[f][(S >> 1) * S + col % S];
+          if (led < 0) continue;
+          const up = Math.max(0, Math.min(1, 1 - b.y)), tx = 0.5 + (X[led] - 0.5) * 0.8, tz = 0.5 + (Z[led] - 0.5) * 0.8;
+          const R = b.r * (0.6 + 0.9 * up), k = 0.3 + 0.7 * up, c = hsl(b.hue, 0.85, 0.5);
+          for (const i of map) {
+            if (i < 0) continue;
+            const dx = (X[i] - tx) / R, dz = (Z[i] - tz) / R, d2 = dx * dx + dz * dz;
+            if (d2 > 1) continue;
+            const z = Math.sqrt(1 - d2), sh = (0.25 + 0.75 * z) * k, spec = Math.pow(z, 18) * 0.6 * k, o = i * 3;
+            cb[o] = Math.min(1, c[0] * sh + spec);
+            cb[o + 1] = Math.min(1, c[1] * sh + spec);
+            cb[o + 2] = Math.min(1, c[2] * sh + spec);
+          }
+        }
+      }
+      var cross = defineCanvasEffect({ panorama: true, render, caps: topView });
       var own = defineCanvasEffect({ render });
       module.exports = function balls(core, dt) {
         return (core.effectOptions?.balls?.crossFaces === false ? own : cross)(core, dt);
