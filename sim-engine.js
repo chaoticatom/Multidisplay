@@ -20363,6 +20363,7 @@ var PiEngine = (() => {
       var { defineCanvasEffect } = require_canvas();
       var { hsl } = require_core();
       var st = { balls: [], n: 0 };
+      var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
       var LIGHT = (() => {
         const l = [-0.5, -0.65, 0.6], n = Math.hypot(...l);
         return l.map((v) => v / n);
@@ -20445,7 +20446,7 @@ var PiEngine = (() => {
         const fy = floor * H;
         for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
           if (y < fy) {
-            const v = 4e-3 + y / fy * 0.016;
+            const v = 5e-3 + y / fy * 0.03 + (BAYER[(y & 3) * 4 + (x & 3)] / 16 - 0.47) / 255;
             c.set(x, y, v * 0.6, v * 0.7, v);
           } else {
             const v = 0.03 - (y - fy) / (H - fy + 1) * 0.012;

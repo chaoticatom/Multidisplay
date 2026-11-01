@@ -12,6 +12,7 @@ const { defineCanvasEffect } = require('./canvas');
 const { hsl } = require('../core');
 
 const st = { balls: [], n: 0 };
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const LIGHT = (() => { const l = [-0.5, -0.65, 0.6], n = Math.hypot(...l); return l.map((v) => v / n); })();
 
 function spawn(n, asp = 1) {
@@ -64,7 +65,9 @@ function render(c, { dt, core }) {
     // on the panels the old levels read as a bright khaki backdrop).
     const fy = floor * H;
     for (let y = 0; y < c.H; y++) for (let x = 0; x < c.W; x++) {
-      if (y < fy) { const v = 0.004 + (y / fy) * 0.016; c.set(x, y, v * 0.6, v * 0.7, v); }
+      // Dithered (a 4x4 ordered pattern of under one 8-bit step): a gradient
+      // this dark only spans a few output levels, which showed as bands.
+      if (y < fy) { const v = 0.005 + (y / fy) * 0.03 + (BAYER[(y & 3) * 4 + (x & 3)] / 16 - 0.47) / 255; c.set(x, y, v * 0.6, v * 0.7, v); }
       else { const v = 0.03 - (y - fy) / (H - fy + 1) * 0.012; c.set(x, y, v * 0.7, v * 0.75, v * 0.9); }
     }
     // Shadows on the floor.
