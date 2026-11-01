@@ -7,7 +7,7 @@
 'use strict';
 
 const { defineFieldEffect } = require('./surface');
-const { sceneUV, fbm, hash2, vnoise, clamp, smooth } = require('./sceneKit');
+const { ringUV, sceneUV, fbm, hash2, vnoise, clamp, smooth } = require('./sceneKit');
 
 const st = { bolts: [], flash: 0, next: 1, cool: 0, w: 1 };
 // A bolt as segments in scene units: a jagged channel down, with forks.
@@ -49,7 +49,7 @@ module.exports = defineFieldEffect({
   fine: true,
   speed: 1,
   frame({ dt, core, flat }) {
-    st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 1;
+    st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 4; // the cube: one scene round its four sides
     st.next -= dt; st.cool -= dt;
     const beat = core && core.audio && core.audio.active && core.audio.beat > 0.85 && st.cool <= 0;
     // Options: freq (strikes a minute), count (bolts per strike), speed (how fast a bolt flashes and goes).
@@ -64,7 +64,23 @@ module.exports = defineFieldEffect({
     st.flash *= Math.exp(-dt * 7);
   },
   pixel(p, { t, core }) {
-    const [x, y] = sceneUV(p, core), f = st.flash;
+    if (p.flat) { const [x, y] = sceneUV(p, core); return scene(x, y, t); }
+    // The cube: one storm wrapped round the sides (a real report: it should
+    // flow across all panels), blended over the one seam; the top is the
+    // cloud base overhead and the bottom dark ground caught by the flash.
+    const [x, y, , side, bottom] = ringUV(p);
+    if (!side) {
+      if (bottom) { const k = 0.008 + st.flash * 0.05; return [k * 0.8, k * 0.85, k]; }
+      return scene(x * 2, 0.04 + 0.04 * y, t);
+    }
+    if (x < 3.7) return scene(x, y, t);
+    const a = scene(x, y, t), b = scene(x - 4, y, t), k = (x - 3.7) / 0.3;
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  },
+});
+
+function scene(x, y, t) {
+    const f = st.flash;
     // Clouds: two drifting layers, lit from inside near a strike.
     const c = fbm(x * 2.2 + t * 0.05, y * 4 - t * 0.02, 4), c2 = fbm(x * 4 - t * 0.08, y * 6, 3);
     const dens = smooth(0.35, 0.75, c * 0.7 + c2 * 0.3) * (1 - smooth(0.35, 0.6, y));
@@ -92,5 +108,5 @@ module.exports = defineFieldEffect({
       const k = 0.01 + f * 0.25; return [k * 0.8 + win, k * 0.85 + win * 0.8, k + win * 0.4];
     }
     return [Math.min(1.3, r), Math.min(1.3, g), Math.min(1.3, b)];
-  },
-});
+}
+

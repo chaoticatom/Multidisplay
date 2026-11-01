@@ -14,6 +14,18 @@ function sceneUV(p, core) {
   if (ex <= ey) return [p.z, 1 - p.y, 1];
   return [p.x, p.z, 1];
 }
+// The cube's four sides as one band: x runs 0..4 round the cube (continuous
+// across every corner, one seam where 4 meets 0), y 0 (top) .. 1 (bottom).
+// Top and bottom faces return side: false with x, y across the face.
+function ringUV(p) {
+  const ex = Math.min(p.x, 1 - p.x), ey = Math.min(p.y, 1 - p.y), ez = Math.min(p.z, 1 - p.z);
+  if (ey < ex && ey < ez) return [p.x, p.z, 4, false, p.y < 0.5]; // last: is it the bottom (p.y is up)
+  const dx = p.x - 0.5, dz = p.z - 0.5;
+  let s;
+  if (Math.abs(dz) >= Math.abs(dx)) s = dz > 0 ? dx + 0.5 : 2 + (0.5 - dx);
+  else s = dx > 0 ? 1 + (0.5 - dz) : 3 + (dz + 0.5);
+  return [s, 1 - p.y, 4, true, false];
+}
 function hash2(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function vnoise(x, y) {
   const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
@@ -24,4 +36,4 @@ function fbm(x, y, oct = 3) { let s = 0, a = 0.5, f = 1, n = 0; for (let i = 0; 
 const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a)); return t * t * (3 - 2 * t); };
 
-module.exports = { sceneUV, hash2, vnoise, fbm, clamp, smooth };
+module.exports = { ringUV, sceneUV, hash2, vnoise, fbm, clamp, smooth };

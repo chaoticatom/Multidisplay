@@ -397,6 +397,15 @@ var PiEngine = (() => {
         if (ex <= ey) return [p.z, 1 - p.y, 1];
         return [p.x, p.z, 1];
       }
+      function ringUV(p) {
+        const ex = Math.min(p.x, 1 - p.x), ey = Math.min(p.y, 1 - p.y), ez = Math.min(p.z, 1 - p.z);
+        if (ey < ex && ey < ez) return [p.x, p.z, 4, false, p.y < 0.5];
+        const dx = p.x - 0.5, dz = p.z - 0.5;
+        let s;
+        if (Math.abs(dz) >= Math.abs(dx)) s = dz > 0 ? dx + 0.5 : 2 + (0.5 - dx);
+        else s = dx > 0 ? 1 + (0.5 - dz) : 3 + (dz + 0.5);
+        return [s, 1 - p.y, 4, true, false];
+      }
       function hash2(x, y) {
         let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) >>> 0;
         h = Math.imul(h ^ h >>> 13, 1274126177) >>> 0;
@@ -422,7 +431,7 @@ var PiEngine = (() => {
         const t = clamp((v - a) / (b - a));
         return t * t * (3 - 2 * t);
       };
-      module.exports = { sceneUV, hash2, vnoise, fbm, clamp, smooth };
+      module.exports = { ringUV, sceneUV, hash2, vnoise, fbm, clamp, smooth };
     }
   });
 
@@ -10853,7 +10862,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { defineFieldEffect } = require_surface();
-      var { sceneUV, fbm, hash2, vnoise, clamp, smooth } = require_sceneKit();
+      var { ringUV, sceneUV, fbm, hash2, vnoise, clamp, smooth } = require_sceneKit();
       var st = { bolts: [], flash: 0, next: 1, cool: 0, w: 1 };
       function makeBolt(w) {
         const segs = [], x0 = w * (0.15 + Math.random() * 0.7), base = 0.3, ground = 0.86;
@@ -10891,7 +10900,7 @@ var PiEngine = (() => {
         fine: true,
         speed: 1,
         frame({ dt, core, flat }) {
-          st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 1;
+          st.w = flat && core && core.wallW && core.wallH ? core.wallW / core.wallH : 4;
           st.next -= dt;
           st.cool -= dt;
           const beat = core && core.audio && core.audio.active && core.audio.beat > 0.85 && st.cool <= 0;
@@ -10916,48 +10925,65 @@ var PiEngine = (() => {
           st.flash *= Math.exp(-dt * 7);
         },
         pixel(p, { t, core }) {
-          const [x, y] = sceneUV(p, core), f = st.flash;
-          const c = fbm(x * 2.2 + t * 0.05, y * 4 - t * 0.02, 4), c2 = fbm(x * 4 - t * 0.08, y * 6, 3);
-          const dens = smooth(0.35, 0.75, c * 0.7 + c2 * 0.3) * (1 - smooth(0.35, 0.6, y));
-          let lit = 0;
-          for (const b2 of st.bolts) lit = Math.max(lit, Math.exp(-Math.abs(x - b2.x0) * 3) * (1 - b2.age / b2.life));
-          let r = 0.012 + 0.02 * (1 - y), g = 0.015 + 0.024 * (1 - y), b = 0.03 + 0.045 * (1 - y);
-          const cl = dens * (0.07 + f * 0.3 + lit * 0.45);
-          r += cl * 0.85;
-          g += cl * 0.85;
-          b += cl * 1.05;
-          r += f * 0.07;
-          g += f * 0.07;
-          b += f * 0.11;
-          const rn = rain(x, y, t, 90, 0.35, 1.5, 0.16, 0.6) * 0.09 + rain(x + 3.1, y, t, 45, 0.55, 2.4, 0.24, 0.45) * 0.2;
-          if (rn > 0) {
-            const k = rn * (1 + f * 3);
-            r += k * 0.75;
-            g += k * 0.85;
-            b += k * 1.05;
+          if (p.flat) {
+            const [x2, y2] = sceneUV(p, core);
+            return scene(x2, y2, t);
           }
-          for (const bo of st.bolts) {
-            if (bo.age < 0) continue;
-            const fade = 1 - bo.age / bo.life;
-            for (const s of bo.segs) {
-              const d = segDist(x, y, s);
-              if (d > 0.06) continue;
-              const core2 = Math.exp(-((d / (7e-3 * s[4])) ** 2)) * 1.4, glow = Math.exp(-d / 0.02) * 0.3 * s[4];
-              const k = (core2 + glow) * fade;
-              r += k * 0.85;
-              g += k * 0.8;
-              b += k;
+          const [x, y, , side, bottom] = ringUV(p);
+          if (!side) {
+            if (bottom) {
+              const k2 = 8e-3 + st.flash * 0.05;
+              return [k2 * 0.8, k2 * 0.85, k2];
             }
+            return scene(x * 2, 0.04 + 0.04 * y, t);
           }
-          const bw = Math.floor(x * 14), bh = 0.8 + 0.1 * hash2(bw, 1);
-          if (y > bh) {
-            const win = hash2(Math.floor(x * 90), Math.floor(y * 90)) > 0.9 && hash2(bw, 5) > 0.3 ? 0.25 : 0;
-            const k = 0.01 + f * 0.25;
-            return [k * 0.8 + win, k * 0.85 + win * 0.8, k + win * 0.4];
-          }
-          return [Math.min(1.3, r), Math.min(1.3, g), Math.min(1.3, b)];
+          if (x < 3.7) return scene(x, y, t);
+          const a = scene(x, y, t), b = scene(x - 4, y, t), k = (x - 3.7) / 0.3;
+          return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
         }
       });
+      function scene(x, y, t) {
+        const f = st.flash;
+        const c = fbm(x * 2.2 + t * 0.05, y * 4 - t * 0.02, 4), c2 = fbm(x * 4 - t * 0.08, y * 6, 3);
+        const dens = smooth(0.35, 0.75, c * 0.7 + c2 * 0.3) * (1 - smooth(0.35, 0.6, y));
+        let lit = 0;
+        for (const b2 of st.bolts) lit = Math.max(lit, Math.exp(-Math.abs(x - b2.x0) * 3) * (1 - b2.age / b2.life));
+        let r = 0.012 + 0.02 * (1 - y), g = 0.015 + 0.024 * (1 - y), b = 0.03 + 0.045 * (1 - y);
+        const cl = dens * (0.07 + f * 0.3 + lit * 0.45);
+        r += cl * 0.85;
+        g += cl * 0.85;
+        b += cl * 1.05;
+        r += f * 0.07;
+        g += f * 0.07;
+        b += f * 0.11;
+        const rn = rain(x, y, t, 90, 0.35, 1.5, 0.16, 0.6) * 0.09 + rain(x + 3.1, y, t, 45, 0.55, 2.4, 0.24, 0.45) * 0.2;
+        if (rn > 0) {
+          const k = rn * (1 + f * 3);
+          r += k * 0.75;
+          g += k * 0.85;
+          b += k * 1.05;
+        }
+        for (const bo of st.bolts) {
+          if (bo.age < 0) continue;
+          const fade = 1 - bo.age / bo.life;
+          for (const s of bo.segs) {
+            const d = segDist(x, y, s);
+            if (d > 0.06) continue;
+            const core2 = Math.exp(-((d / (7e-3 * s[4])) ** 2)) * 1.4, glow = Math.exp(-d / 0.02) * 0.3 * s[4];
+            const k = (core2 + glow) * fade;
+            r += k * 0.85;
+            g += k * 0.8;
+            b += k;
+          }
+        }
+        const bw = Math.floor(x * 14), bh = 0.8 + 0.1 * hash2(bw, 1);
+        if (y > bh) {
+          const win = hash2(Math.floor(x * 90), Math.floor(y * 90)) > 0.9 && hash2(bw, 5) > 0.3 ? 0.25 : 0;
+          const k = 0.01 + f * 0.25;
+          return [k * 0.8 + win, k * 0.85 + win * 0.8, k + win * 0.4];
+        }
+        return [Math.min(1.3, r), Math.min(1.3, g), Math.min(1.3, b)];
+      }
     }
   });
 
