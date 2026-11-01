@@ -19387,6 +19387,7 @@ var PiEngine = (() => {
       var lastState = newState();
       module.exports = defineCanvasEffect({
         panorama: true,
+        caps: topSky,
         render(c, { t, dt, core }) {
           const W = c.W, H = c.H, wrap = !!c.wrap, faces = wrap ? Math.round(W / H) : 1, span = wrap ? H : W, o = core.effectOptions && core.effectOptions.fireworks || {};
           const st = core._fireworks || (core._fireworks = newState());
@@ -19426,7 +19427,8 @@ var PiEngine = (() => {
           const launch = (type, at) => {
             const types = STYLE_TYPES[opt.style];
             type = type || types[Math.floor(Math.random() * types.length)];
-            const tx = at !== void 0 ? at : W * (0.15 + Math.random() * 0.7), ty = horizon * (0.18 + Math.random() * 0.3);
+            const high = wrap && type !== "text" && Math.random() < 0.3;
+            const tx = at !== void 0 ? at : wrap ? Math.random() * W : W * (0.15 + Math.random() * 0.7), ty = high ? -H * (0.15 + Math.random() * 0.3) : horizon * (0.18 + Math.random() * 0.3);
             st.rockets.push({ x: tx + (Math.random() - 0.5) * 6, y: horizon, tx, ty, vy: -(horizon - ty) * 1.9, type, col: PAL[opt.palette]() });
           };
           const burst = (r) => {
@@ -19682,6 +19684,43 @@ var PiEngine = (() => {
           }
         }
       });
+      var SIDE = [0, 2, 1, 3];
+      function topSky(core, face) {
+        const S = core.SIZE, map = core.faceMap[face], cb = core.colBuf;
+        for (const i of map) if (i >= 0) {
+          const o = i * 3;
+          cb[o] = 3e-3;
+          cb[o + 1] = 4e-3;
+          cb[o + 2] = 0.012;
+        }
+        const st = core._fireworks;
+        if (face !== 4 || !st || !st.W) return;
+        const X = core.surfX, Z = core.surfZ, W = st.W, H = st.H;
+        if (!core._topGrid || core._topGrid.length !== S * S) {
+          core._topGrid = new Int32Array(S * S).fill(-1);
+          for (const i of map) if (i >= 0) core._topGrid[Math.round(Z[i] * (S - 1)) * S + Math.round(X[i] * (S - 1))] = i;
+        }
+        const grid = core._topGrid;
+        const plot = (x, y, r, g, b) => {
+          if (y >= 0) return;
+          const col = (Math.round(x) % W + W) % W, f = SIDE[col / S | 0], led = core.faceMap[f][(S - 1) * S + col % S];
+          if (led < 0) return;
+          const ex = X[led], ez = Z[led], onZ = Math.abs(ez - 0.5) > Math.abs(ex - 0.5), d = -y / H;
+          const tx = ex + (onZ ? 0 : ex > 0.5 ? -d : d), tz = ez + (onZ ? ez > 0.5 ? -d : d : 0);
+          if (tx < 0 || tx > 1 || tz < 0 || tz > 1) return;
+          const best = grid[Math.round(tz * (S - 1)) * S + Math.round(tx * (S - 1))];
+          if (best < 0) return;
+          const o = best * 3;
+          cb[o] = Math.min(1, cb[o] + r);
+          cb[o + 1] = Math.min(1, cb[o + 1] + g);
+          cb[o + 2] = Math.min(1, cb[o + 2] + b);
+        };
+        for (const r of st.rockets) for (let k = 0; k < 5; k++) plot(r.x, r.y + k * 1.4, 0.9 * (1 - k / 5), 0.6 * (1 - k / 5), 0.3 * (1 - k / 5));
+        for (const p of st.stars) {
+          const L = Math.max(0, Math.min(1, p.life)), warm = 1 - L, k = Math.min(1, L * 1.6);
+          plot(p.x, p.y, (p.col[0] * (1 - warm * 0.2) + warm * 0.3) * k, p.col[1] * (1 - warm * 0.5) * k, p.col[2] * (1 - warm * 0.7) * k);
+        }
+      }
       module.exports.getStatus = () => ({ rockets: lastState.rockets.length, stars: lastState.stars.length });
     }
   });
