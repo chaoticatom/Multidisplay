@@ -42,7 +42,7 @@ function render(c, { dt, core }) {
     for (const b of st.balls) {
       b.vy += 1.6 * step;
       b.x += b.vx * step; b.y += b.vy * step;
-      if (b.y + b.r > floor) { b.y = floor - b.r; hit(b, 0, 1, Math.abs(b.vy)); b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8); }
+      if (b.y + b.r > floor) { b.y = floor - b.r; hit(b, 0, 1, Math.abs(b.vy)); b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8 + (wrap && Math.random() < 0.05 ? 1.0 : 0)); } // round the cube some bounce over the top edge
       if (wrap) b.x = ((b.x % asp) + asp) % asp; // round the cube: no side walls
       else {
         if (b.x - b.r < 0.02) { b.x = 0.02 + b.r; hit(b, -1, 0, Math.abs(b.vx)); b.vx = Math.abs(b.vx); }
@@ -57,7 +57,7 @@ function render(c, { dt, core }) {
         a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
         const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (rel < 0) { hit(a, nx, ny, -rel); hit(b, -nx, -ny, -rel); }
-        if (rel < 0) { a.vx += rel * nx; a.vy += rel * ny; b.vx -= rel * nx; b.vy -= rel * ny; }
+        if (rel < 0) { const e = 0.85; a.vx += rel * e * nx; a.vy += rel * e * ny; b.vx -= rel * e * nx; b.vy -= rel * e * ny; } // a little give, so knocks don't pump energy in
       }
     }
     const H = c.H;
@@ -108,23 +108,27 @@ function render(c, { dt, core }) {
 }
 
 // Two canvases: wrapped round the cube's sides, or a copy per side face.
-// Cross Faces' top face: looking down into the box. Each ball shows near the
-// edge it's against, bigger and brighter the higher it is (nearer the top).
+// Cross Faces' top face: the sides carry on over the top edge. A ball that
+// bounces higher than the side panels continues onto the top face, in from
+// the edge it crossed, and drops back off it as it falls.
 const SIDE = [0, 2, 1, 3]; // the canvas's face order round the cube (canvas.js)
 function topView(core, face) {
   if (face !== 4) return; // the bottom stays dark
   const S = core.SIZE, map = core.faceMap[4], X = core.surfX, Z = core.surfZ, cb = core.colBuf;
-  for (const i of map) if (i >= 0) { const o = i * 3, v = 0.006; cb[o] = v * 0.6; cb[o + 1] = v * 0.7; cb[o + 2] = v; }
+  for (const i of map) if (i >= 0) { const o = i * 3, v = 0.005; cb[o] = v * 0.6; cb[o + 1] = v * 0.7; cb[o + 2] = v; }
   for (const b of st.balls) {
-    const col = ((Math.round(b.x * S) % (4 * S)) + 4 * S) % (4 * S), f = SIDE[(col / S) | 0], led = core.faceMap[f][(S >> 1) * S + (col % S)];
+    if (b.y - b.r > 0) continue; // entirely below the top edge
+    const col = ((Math.round(b.x * S) % (4 * S)) + 4 * S) % (4 * S), f = SIDE[(col / S) | 0], led = core.faceMap[f][(S - 1) * S + (col % S)];
     if (led < 0) continue;
-    const up = Math.max(0, Math.min(1, 1 - b.y)), tx = 0.5 + (X[led] - 0.5) * 0.8, tz = 0.5 + (Z[led] - 0.5) * 0.8;
-    const R = b.r * (0.6 + 0.9 * up), k = 0.3 + 0.7 * up, c = hsl(b.hue, 0.85, 0.5);
+    // Where it crossed the edge, and the way in from that side.
+    const ex = X[led], ez = Z[led], onZ = Math.abs(ez - 0.5) > Math.abs(ex - 0.5);
+    const nx = onZ ? 0 : (ex > 0.5 ? -1 : 1), nz = onZ ? (ez > 0.5 ? -1 : 1) : 0;
+    const tx = ex + nx * -b.y, tz = ez + nz * -b.y, R = b.r, c = hsl(b.hue, 0.85, 0.5);
     for (const i of map) {
       if (i < 0) continue;
       const dx = (X[i] - tx) / R, dz = (Z[i] - tz) / R, d2 = dx * dx + dz * dz;
       if (d2 > 1) continue;
-      const z = Math.sqrt(1 - d2), sh = (0.25 + 0.75 * z) * k, spec = Math.pow(z, 18) * 0.6 * k, o = i * 3;
+      const z = Math.sqrt(1 - d2), sh = 0.25 + 0.8 * z, spec = Math.pow(z, 18) * 0.7, o = i * 3;
       cb[o] = Math.min(1, c[0] * sh + spec); cb[o + 1] = Math.min(1, c[1] * sh + spec); cb[o + 2] = Math.min(1, c[2] * sh + spec);
     }
   }
