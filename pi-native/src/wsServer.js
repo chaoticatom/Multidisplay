@@ -37,7 +37,7 @@ const httpApi = require('./httpApi');
 const pinConfig = require('./pinConfig');
 const { createUpdater } = require('./selfUpdate');
 
-const PREVIEW_FPS = 20; // matches the ESP32 firmware's streamFrameToCube() throttle
+const PREVIEW_FPS = 30; // was 20 (the old ESP32 throttle): the website cube looked jerky - a real report
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
 const THREE_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'three.min.js'));   // served for the sidebar/3D-preview page's <script src>, same pattern as INDEX_HTML

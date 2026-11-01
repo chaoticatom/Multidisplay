@@ -23748,7 +23748,7 @@ var PiEngine = (() => {
               st.dueAt.set(p.hex, at);
               dueIn = Math.max(0, (at - now) / 1e3);
             } else st.dueAt.delete(p.hex);
-            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5 || miss < 2.5 && Math.abs(tc) < 6, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
+            return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, closing: tc > 0, overhead: rel.dist < 1.5 || miss < 2.5 && Math.abs(tc) < 6, route: route || null, airline: route && route.airline || al.name, color: al.color, interesting: isInteresting(p) };
           }).sort((a, b) => a.dist - b.dist);
         }
         return { update, planes, summary, status: () => st.status, state: st };
@@ -23804,6 +23804,10 @@ var PiEngine = (() => {
           tg.set(x + w - 1 - d, y + d, c[0], c[1], c[2]);
         }
       }
+      function wayIcon(tg, x, y, p, t) {
+        const inb = !!p.closing, a = inb ? 0.65 + 0.35 * Math.sin(t * 5) : 0.7, c = inb ? GR : [0.85, 0.3, 0.25];
+        for (let r = 0; r < 3; r++) for (let i = r; i < 5 - r; i++) tg.set(x + i, inb ? y + r : y + 2 - r, c[0] * a, c[1] * a, c[2] * a);
+      }
       function liveDot(tg, x, y, t) {
         const a = 0.6 + 0.4 * Math.sin(t * 4);
         for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) tg.set(x + i, y + j, GR[0] * a, GR[1] * a, GR[2] * a);
@@ -23853,7 +23857,8 @@ var PiEngine = (() => {
         txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
         txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
         const [ll, lc, flash] = lastLine(p, t, nextDue, false);
-        txt(tg, FONT_3x5, fit(ll, W - 14 - w3(info || "LIVE"), w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+        wayIcon(tg, 2, 57, p, t);
+        txt(tg, FONT_3x5, fit(ll, W - 21 - w3(info || "LIVE"), w3), 9, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
         const live = info || "LIVE", lw = w3(live);
         if (!info) liveDot(tg, W - 7 - lw, 57, t);
         txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
@@ -23883,7 +23888,8 @@ var PiEngine = (() => {
         const hd = "TO " + compass(p.track);
         txt(tg, FONT_3x5, hd, 62 - w3(hd), 47, DM);
         const [ll, lc, flash] = lastLine(p, t, nextDue, true);
-        txt(tg, FONT_3x5, fit(ll, info ? 44 : 60, w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+        wayIcon(tg, 2, 57, p, t);
+        txt(tg, FONT_3x5, fit(ll, info ? 37 : 53, w3), 9, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
         if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
       }
       function drawRadar(tg, planes, focus, t, radiusKm, details = true) {

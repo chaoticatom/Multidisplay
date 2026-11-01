@@ -206,7 +206,7 @@ function createPlaneData(fetchFn = fetchWithTimeout) {
         const at = had && Math.abs(had - est) < 15000 ? had + (est - had) * 0.05 : est;
         st.dueAt.set(p.hex, at); dueIn = Math.max(0, (at - now) / 1000);
       } else st.dueAt.delete(p.hex);
-      return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, overhead: rel.dist < 1.5 || (miss < 2.5 && Math.abs(tc) < 6), route: route || null, airline: (route && route.airline) || al.name, color: al.color, interesting: isInteresting(p) };
+      return { ...p, lat, lon, dist: rel.dist, brg: rel.brg, dueIn, miss, closing: tc > 0, overhead: rel.dist < 1.5 || (miss < 2.5 && Math.abs(tc) < 6), route: route || null, airline: (route && route.airline) || al.name, color: al.color, interesting: isInteresting(p) };
     }).sort((a, b) => a.dist - b.dist);
   }
   return { update, planes, summary, status: () => st.status, state: st };

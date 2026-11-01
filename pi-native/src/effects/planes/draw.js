@@ -30,6 +30,12 @@ function tail(tg, x0, y0, col, h = 9) {
   for (let y = 0; y < h; y++) for (let x = 0; x < h + 2; x++) { const inside = x >= y * 0.9 && x <= y * 0.9 + 6 + (y > h * 0.6 ? 3 : 0); if (inside) tg.set(x0 + x, y0 + h - 1 - y, col[0] * (y < 3 ? 0.7 : 1), col[1] * (y < 3 ? 0.7 : 1), col[2] * (y < 3 ? 0.7 : 1)); }
 }
 function arrow(tg, x, y, w, c) { for (let i = 0; i < w; i++) tg.set(x + i, y, c[0], c[1], c[2]); for (let d = 1; d <= 2; d++) { tg.set(x + w - 1 - d, y - d, c[0], c[1], c[2]); tg.set(x + w - 1 - d, y + d, c[0], c[1], c[2]); } }
+// Coming towards home or going away: a green triangle pointing down
+// (in, pulsing) or a dim red one pointing up (out), 5 wide x 3 tall.
+function wayIcon(tg, x, y, p, t) {
+  const inb = !!p.closing, a = inb ? 0.65 + 0.35 * Math.sin(t * 5) : 0.7, c = inb ? GR : [0.85, 0.3, 0.25];
+  for (let r = 0; r < 3; r++) for (let i = r; i < 5 - r; i++) tg.set(x + i, inb ? y + r : y + 2 - r, c[0] * a, c[1] * a, c[2] * a);
+}
 function liveDot(tg, x, y, t) { const a = 0.6 + 0.4 * Math.sin(t * 4); for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) tg.set(x + i, y + j, GR[0] * a, GR[1] * a, GR[2] * a); }
 
 // A: the flight board (any width from 96 up; 64-tall).
@@ -76,7 +82,8 @@ function drawBoard(tg, p, t, info = '', nextDue = null) {
   txt(tg, FONT_5x7, alt, Math.round(W / 2 - w5(alt) / 2), 44, AM);
   txt(tg, FONT_5x7, spd, W - 2 - w5(spd), 44, CY);
   const [ll, lc, flash] = lastLine(p, t, nextDue, false);
-  txt(tg, FONT_3x5, fit(ll, W - 14 - w3(info || 'LIVE'), w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+  wayIcon(tg, 2, 57, p, t);
+  txt(tg, FONT_3x5, fit(ll, W - 21 - w3(info || 'LIVE'), w3), 9, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
   const live = info || 'LIVE', lw = w3(live);
   if (!info) liveDot(tg, W - 7 - lw, 57, t);
   txt(tg, FONT_3x5, live, W - 2 - lw, 56, info ? DM : GR);
@@ -98,7 +105,8 @@ function drawCompact(tg, p, t, info = '', nextDue = null) {
   txt(tg, FONT_3x5, p.type || '', 2, 39, WH); const alt = fmtAlt(p.alt); txt(tg, FONT_3x5, alt, 62 - w3(alt), 39, AM);
   txt(tg, FONT_3x5, Math.round(p.gs) + 'KT', 2, 47, CY); const hd = 'TO ' + compass(p.track); txt(tg, FONT_3x5, hd, 62 - w3(hd), 47, DM);
   const [ll, lc, flash] = lastLine(p, t, nextDue, true);
-  txt(tg, FONT_3x5, fit(ll, info ? 44 : 60, w3), 2, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
+  wayIcon(tg, 2, 57, p, t);
+  txt(tg, FONT_3x5, fit(ll, info ? 37 : 53, w3), 9, 56, lc, flash ? 0.6 + 0.4 * Math.sin(t * 8) : 1);
   if (info) txt(tg, FONT_3x5, info, 62 - w3(info), 56, DM, 0.8);
 }
 
