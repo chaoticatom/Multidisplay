@@ -19579,7 +19579,7 @@ var PiEngine = (() => {
             let dx = Math.abs(x - fx);
             if (wrap) dx = Math.min(dx, W - dx);
             const d2 = (dx * dx + (y - fy) * (y - fy)) / (R * R);
-            return d2 > 6 ? 0 : fl * Math.exp(-d2);
+            return d2 > 6 ? 0 : fl * 0.7 * Math.exp(-d2);
           };
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const i = (y * W + x) * 3, v = y / H;

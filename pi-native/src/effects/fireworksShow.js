@@ -159,7 +159,7 @@ module.exports = defineCanvasEffect({
     // wide - not the whole display (a real report: a burst on the far side of
     // the cube flashed this side too).
     const fx = st.flashX * W, fy = st.flashY * H, R = span * 0.45;
-    const glowAt = (x, y) => { let dx = Math.abs(x - fx); if (wrap) dx = Math.min(dx, W - dx); const d2 = (dx * dx + (y - fy) * (y - fy)) / (R * R); return d2 > 6 ? 0 : fl * Math.exp(-d2); };
+    const glowAt = (x, y) => { let dx = Math.abs(x - fx); if (wrap) dx = Math.min(dx, W - dx); const d2 = (dx * dx + (y - fy) * (y - fy)) / (R * R); return d2 > 6 ? 0 : fl * 0.7 * Math.exp(-d2); }; // 0.7: toned down a little on request
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 3, v = y / H;
       let r = 0, g = 0, b = 0;
