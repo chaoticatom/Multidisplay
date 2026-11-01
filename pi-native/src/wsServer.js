@@ -37,6 +37,10 @@ const httpApi = require('./httpApi');
 const pinConfig = require('./pinConfig');
 const { createUpdater } = require('./selfUpdate');
 
+// Compress messages (the browser handles it): preview frames are mostly dark
+// or smooth, so a fast deflate shrinks them several times over for little
+// Pi CPU. Small messages aren't worth it.
+const PREVIEW_DEFLATE = { zlibDeflateOptions: { level: 1, memLevel: 8 }, threshold: 1024, serverNoContextTakeover: false };
 const PREVIEW_FPS = 30; // was 20 (the old ESP32 throttle): the website cube looked jerky - a real report
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
@@ -161,7 +165,7 @@ class WsServer {
     // GET request (see project discussion - this is exactly the confusion
     // that prompted building this page in the first place).
     this.http = http.createServer((req, res) => this._handleHttp(req, res));
-    this.wss = new WebSocket.Server({ server: this.http, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) });
+    this.wss = new WebSocket.Server({ server: this.http, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: PREVIEW_DEFLATE, verifyClient: ({ req }) => isSameOrigin(req) });
 
     // Tracks EVERY connected client across both the plain-HTTP and (if
     // available) HTTPS listeners as one set, so broadcast/preview-
@@ -184,7 +188,7 @@ class WsServer {
       const ports = String(process.env.HTTPS_PORT || port + 1).split(',').map((p) => parseInt(p, 10)).filter((p) => p > 0 && p < 65536);
       this.httpsServers = ports.map((p) => {
         const srv = https.createServer(tlsFiles, (req, res) => this._handleHttp(req, res));
-        this._wireConnection(new WebSocket.Server({ server: srv, maxPayload: WS_MAX_PAYLOAD, verifyClient: ({ req }) => isSameOrigin(req) }));
+        this._wireConnection(new WebSocket.Server({ server: srv, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: PREVIEW_DEFLATE, verifyClient: ({ req }) => isSameOrigin(req) }));
         srv.on('error', (e) => console.warn(`[app] HTTPS on :${p} failed: ${e.message}`));
         srv.listen(p);
         console.log(`[app] HTTPS control page (needed for camera/screen capture) on :${p}`);

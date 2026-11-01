@@ -20350,8 +20350,18 @@ var PiEngine = (() => {
           vy: 0,
           r: 0.07 + Math.random() * 0.05,
           hue: (i / n + Math.random() * 0.1) % 1,
-          squash: 0
+          squash: 0,
+          sqx: 0,
+          sqy: 1
         }));
+      }
+      function hit(b, nx, ny, speed) {
+        const k = Math.min(0.35, speed * 0.25);
+        if (k > b.squash) {
+          b.squash = k;
+          b.sqx = nx;
+          b.sqy = ny;
+        }
       }
       function render(c, { dt, core }) {
         const wrap = !!c.wrap, faces = wrap ? Math.round(c.W / c.H) : 1;
@@ -20366,17 +20376,19 @@ var PiEngine = (() => {
           b.y += b.vy * step;
           if (b.y + b.r > floor) {
             b.y = floor - b.r;
-            b.squash = Math.min(0.35, Math.abs(b.vy) * 0.25);
+            hit(b, 0, 1, Math.abs(b.vy));
             b.vy = -Math.max(Math.abs(b.vy) * 0.86, 0.9 + beat * 0.8);
           }
           if (wrap) b.x = (b.x % asp + asp) % asp;
           else {
             if (b.x - b.r < 0.02) {
               b.x = 0.02 + b.r;
+              hit(b, -1, 0, Math.abs(b.vx));
               b.vx = Math.abs(b.vx);
             }
             if (b.x + b.r > asp * 0.98) {
               b.x = asp * 0.98 - b.r;
+              hit(b, 1, 0, Math.abs(b.vx));
               b.vx = -Math.abs(b.vx);
             }
           }
@@ -20391,6 +20403,10 @@ var PiEngine = (() => {
             b.x += nx * push;
             b.y += ny * push;
             const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+            if (rel < 0) {
+              hit(a, nx, ny, -rel);
+              hit(b, -nx, -ny, -rel);
+            }
             if (rel < 0) {
               a.vx += rel * nx;
               a.vy += rel * ny;
@@ -20420,12 +20436,14 @@ var PiEngine = (() => {
         }
         for (const b of [...st.balls].sort((p, q) => p.r - q.r)) for (const shf of shifts) {
           const cx = b.x * H + shf, cy = b.y * H, R = b.r * H, sq = b.squash;
-          const rx = R * (1 + sq * 0.5), ry = R * (1 - sq * 0.4), oy = cy + R * sq * 0.4;
+          const nx = b.sqx, ny = b.sqy, ra = R * (1 - sq * 0.4), rp = R * (1 + sq * 0.5), ox = cx + nx * R * sq * 0.4, oy = cy + ny * R * sq * 0.4, ext = rp + 1;
           const col = hsl(b.hue, 0.85, 0.5);
-          for (let y = Math.floor(oy - ry - 1); y <= oy + ry + 1; y++) for (let x = Math.floor(cx - rx - 1); x <= cx + rx + 1; x++) {
+          for (let y = Math.floor(oy - ext); y <= oy + ext; y++) for (let x = Math.floor(ox - ext); x <= ox + ext; x++) {
             let ar = 0, ag = 0, ab = 0, cov = 0;
             for (let s = 0; s < 4; s++) {
-              const u = (x + 0.25 + (s & 1) * 0.5 - cx) / rx, v = (y + 0.25 + (s >> 1) * 0.5 - oy) / ry, d2 = u * u + v * v;
+              const px = x + 0.25 + (s & 1) * 0.5 - ox, py = y + 0.25 + (s >> 1) * 0.5 - oy;
+              const ua = (px * nx + py * ny) / ra, up = (-px * ny + py * nx) / rp;
+              const u = ua * nx - up * ny, v = ua * ny + up * nx, d2 = ua * ua + up * up;
               if (d2 > 1) continue;
               const z = Math.sqrt(1 - d2), lam = Math.max(0, u * LIGHT[0] + v * LIGHT[1] + z * LIGHT[2]);
               const refl = 2 * lam * z - LIGHT[2], spec = Math.pow(Math.max(0, refl), 24) * 0.95;
