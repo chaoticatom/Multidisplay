@@ -20701,8 +20701,9 @@ var PiEngine = (() => {
         return hsl(hue, 0.55, 0.12 + 0.28 * Math.max(0, 1 - best * 1.6));
       }
       module.exports = defineCanvasEffect({
+        panorama: true,
         render(c, { t, dt, core }) {
-          const W = c.W, H = c.H;
+          const W = c.W, H = c.H, wrap = !!c.wrap, faces = wrap ? Math.round(W / H) : 1;
           if (st.W !== W || st.H !== H) {
             st.W = W;
             st.H = H;
@@ -20719,7 +20720,7 @@ var PiEngine = (() => {
           }
           const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
           if ((st.drop -= dt) <= 0 || beat > 0.8 && Math.random() < 0.25) {
-            st.drop = 0.4 + Math.random() * 1.2;
+            st.drop = (0.4 + Math.random() * 1.2) / faces;
             const x0 = 2 + Math.floor(Math.random() * (W - 4)), y0 = 2 + Math.floor(Math.random() * (H - 4));
             for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) st.a[(y0 + j) * W + x0 + i] -= i || j ? 2.5 : 5;
           }
@@ -20727,9 +20728,10 @@ var PiEngine = (() => {
           while (st.acc > 1 / 60) {
             st.acc -= 1 / 60;
             const { a, b } = st;
-            for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
-              const p = y * W + x;
-              b[p] = ((a[p - 1] + a[p + 1] + a[p - W] + a[p + W]) * 0.5 - b[p]) * 0.985;
+            const x0 = wrap ? 0 : 1, x1 = wrap ? W : W - 1;
+            for (let y = 1; y < H - 1; y++) for (let x = x0; x < x1; x++) {
+              const p = y * W + x, l = y * W + (x ? x - 1 : W - 1), r = y * W + (x < W - 1 ? x + 1 : 0);
+              b[p] = ((a[l] + a[r] + a[p - W] + a[p + W]) * 0.5 - b[p]) * 0.985;
             }
             st.a = b;
             st.b = a;
@@ -20737,7 +20739,7 @@ var PiEngine = (() => {
           const h = st.a;
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const p = y * W + x;
-            const dhx = x > 0 && x < W - 1 ? (h[p + 1] - h[p - 1]) * 0.5 : 0, dhy = y > 0 && y < H - 1 ? (h[p + W] - h[p - W]) * 0.5 : 0;
+            const dhx = wrap ? (h[y * W + (x < W - 1 ? x + 1 : 0)] - h[y * W + (x ? x - 1 : W - 1)]) * 0.5 : x > 0 && x < W - 1 ? (h[p + 1] - h[p - 1]) * 0.5 : 0, dhy = y > 0 && y < H - 1 ? (h[p + W] - h[p - W]) * 0.5 : 0;
             const P = st.pad, FW = W + 2 * P;
             const fx = Math.max(0, Math.min(FW - 1, Math.round(x + P + dhx * 5))), fy = Math.max(0, Math.min(H + 2 * P - 1, Math.round(y + P + dhy * 5)));
             const fo = (fy * FW + fx) * 3, col = [st.floorImg[fo], st.floorImg[fo + 1], st.floorImg[fo + 2]];
@@ -22971,7 +22973,8 @@ var PiEngine = (() => {
         return getMoonIllumination(/* @__PURE__ */ new Date()).phase;
       }
       function drawMoonText(core, face, text, su, sv) {
-        drawString(FONT_MOON, text, su, core.SIZE - 5 - sv, faceMaxPlot(core, face, 0.75, 0.8, 0.85));
+        const y0 = core.SIZE - 5 - sv, plot = faceMaxPlot(core, face, 0.75, 0.8, 0.85);
+        drawString(FONT_MOON, text, su, y0, (x, y) => plot(x, 2 * y0 + 4 - y));
       }
       var _moonScrollX = 0;
       function effectCelestial(core, dt) {
