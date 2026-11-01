@@ -22,7 +22,7 @@ const { hsl } = require('../core');
 const { FONT_5x7 } = require('./text');
 
 const PAL = {
-  rainbow: () => hsl(Math.random(), 1, 0.6),
+  rainbow: () => hsl(Math.random(), 1, 0.52), // fully saturated (0.6 read pastel)
   gold: () => (Math.random() < 0.6 ? [1, 0.75, 0.3] : [0.9, 0.92, 1]),
   rwb: () => [[1, 0.15, 0.2], [1, 1, 1], [0.25, 0.4, 1]][Math.floor(Math.random() * 3)],
   neon: () => [[1, 0.1, 0.8], [0.1, 1, 0.9], [0.6, 1, 0.1], [1, 0.9, 0.1]][Math.floor(Math.random() * 4)],
@@ -91,11 +91,11 @@ module.exports = defineCanvasEffect({
       const sph = (v, extra) => { const a = Math.random() * 6.283, k = Math.sqrt(1 - (Math.random() * 2 - 1) ** 2); star(Math.cos(a) * v * k, Math.sin(a) * v * k, extra); };
       const gold = [1, 0.72, 0.28];
       switch (r.type) {
-        case 'peony': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (14 + Math.random() * 6) * sz; star(Math.cos(a) * v, Math.sin(a) * v); } break;
+        case 'peony': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (14 + Math.random() * 6) * sz; star(Math.cos(a) * v, Math.sin(a) * v, { col: i % 2 ? col : col2 }); } break; // two colours
         case 'pistil': for (let i = 0; i < n; i++) sph((14 + Math.random() * 3) * sz); for (let i = 0; i < n * 0.4; i++) sph((6 + Math.random() * 2) * sz, { col: col2, decay: 0.75 }); break;
-        case 'dahlia': for (let i = 0; i < n * 0.45; i++) sph((17 + Math.random() * 3) * sz, { decay: 0.4 + Math.random() * 0.15, drag: 0.975 }); break;
-        case 'brocade': for (let i = 0; i < n; i++) sph((13 + Math.random() * 4) * sz, { col: gold, twinkle: 1, decay: 0.32, drag: 0.955, g: 14 * sz }); break;
-        case 'kamuro': for (let i = 0; i < n * 1.3; i++) sph((12 + Math.random() * 3) * sz, { col: [1, 0.85, 0.55], twinkle: 1, decay: 0.22 + Math.random() * 0.08, drag: 0.94, g: 11 * sz }); break;
+        case 'dahlia': for (let i = 0; i < n * 0.45; i++) sph((17 + Math.random() * 3) * sz, { col: [col, col2, PAL[opt.palette]()][i % 3], decay: 0.4 + Math.random() * 0.15, drag: 0.975 }); break;
+        case 'brocade': for (let i = 0; i < n; i++) sph((13 + Math.random() * 4) * sz, { col: i % 3 ? gold : col, twinkle: 1, decay: 0.32, drag: 0.955, g: 14 * sz }); break;
+        case 'kamuro': for (let i = 0; i < n * 1.3; i++) sph((12 + Math.random() * 3) * sz, { col: i % 2 ? [1, 0.85, 0.55] : col, twinkle: 1, decay: 0.22 + Math.random() * 0.08, drag: 0.94, g: 11 * sz }); break;
         case 'strobe': for (let i = 0; i < n * 0.7; i++) sph((12 + Math.random() * 6) * sz, { col: [1, 1, 1], twinkle: 1, decay: 0.45, drag: 0.97 }); break;
         case 'chrys': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (15 + Math.random() * 5) * sz; star(Math.cos(a) * v, Math.sin(a) * v, { trail: 1, col: i % 3 ? col : col2 }); } break;
         case 'willow': for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = (9 + Math.random() * 5) * sz; star(Math.cos(a) * v, Math.sin(a) * v, { col: [1, 0.72, 0.28], trail: 1, decay: 0.28, drag: 0.97, g: 7 * sz }); } break;
@@ -183,7 +183,7 @@ module.exports = defineCanvasEffect({
       const L = Math.max(0, Math.min(1, p.life)), warm = 1 - L;
       let k = Math.min(1, L * 1.6);
       if (p.twinkle && Math.random() < 0.45) k *= 0.1;
-      const cr = p.col[0] * (1 - warm * 0.2) + warm * 0.3, cg = p.col[1] * (1 - warm * 0.5), cb = p.col[2] * (1 - warm * 0.7);
+      const cr = p.col[0] * (1 - warm * 0.1) + warm * 0.12, cg = p.col[1] * (1 - warm * 0.25), cb = p.col[2] * (1 - warm * 0.35); // keeps its colour as it fades
       add(p.x, p.y, cr * k, cg * k, cb * k);
       if (p.trail) for (let q = 1; q < 4; q++) add(p.x - p.vx * 0.02 * q, p.y - p.vy * 0.02 * q, cr * k * 0.35 / q, cg * k * 0.35 / q, cb * k * 0.35 / q);
     }
@@ -239,7 +239,7 @@ function topSky(core, face) {
   for (const r of st.rockets) for (let k = 0; k < 5; k++) plot(r.x, r.y + k * 1.4, 0.9 * (1 - k / 5), 0.6 * (1 - k / 5), 0.3 * (1 - k / 5));
   for (const p of st.stars) {
     const L = Math.max(0, Math.min(1, p.life)), warm = 1 - L, k = Math.min(1, L * 1.6);
-    plot(p.x, p.y, (p.col[0] * (1 - warm * 0.2) + warm * 0.3) * k, p.col[1] * (1 - warm * 0.5) * k, p.col[2] * (1 - warm * 0.7) * k);
+    plot(p.x, p.y, (p.col[0] * (1 - warm * 0.1) + warm * 0.12) * k, p.col[1] * (1 - warm * 0.25) * k, p.col[2] * (1 - warm * 0.35) * k);
   }
 }
 
