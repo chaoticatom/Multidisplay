@@ -39,7 +39,7 @@ const STYLE_TYPES = {
 const RATE = [2.6, 2.2, 1.8, 1.5, 1.2, 1.0, 0.8, 0.6, 0.45, 0.32]; // quantity 1..10 -> seconds between launches
 
 // Show state lives on each display's core, so two displays never share a sky.
-const newState = () => ({ lastFinale: undefined, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
+const newState = () => ({ lastFinale: undefined, W: 0, H: 0, buf: null, smoke: null, rockets: [], stars: [], flash: 0, flashX: 0.5, flashY: 0.3, next: 0.2, finaleT: 0, finaleLeft: 0, textT: 6, wasBeat: 0 });
 let lastState = newState();
 
 module.exports = defineCanvasEffect({
@@ -78,7 +78,7 @@ module.exports = defineCanvasEffect({
     const burst = (r) => {
       const sz = opt.size, col = r.col, col2 = PAL[opt.palette]();
       const star = (vx, vy, extra) => st.stars.push(Object.assign({ x: r.x, y: r.y, vx, vy, life: 1, decay: 0.55 + Math.random() * 0.3, col, trail: 0, drag: 0.985, g: 9 * sz, twinkle: 0 }, extra));
-      st.flash = 1; st.flashX = r.x / W;
+      st.flash = 1; st.flashX = r.x / W; st.flashY = r.y / H;
       if (o.partySfx && core.sfx) core.sfx.push('boom'); // bangs during Party mode
       const n = Math.round(60 * Math.min(2, sz));
       // A real shell bursts as a sphere: seen side-on, stars fill a disc
@@ -155,14 +155,19 @@ module.exports = defineCanvasEffect({
 
     // Sky, flash light and smoke.
     const fl = st.flash * st.flash, bd = opt.backdrop;
+    // The burst lights only the sky round it - a soft pool about a panel
+    // wide - not the whole display (a real report: a burst on the far side of
+    // the cube flashed this side too).
+    const fx = st.flashX * W, fy = st.flashY * H, R = span * 0.45;
+    const glowAt = (x, y) => { let dx = Math.abs(x - fx); if (wrap) dx = Math.min(dx, W - dx); const d2 = (dx * dx + (y - fy) * (y - fy)) / (R * R); return d2 > 6 ? 0 : fl * Math.exp(-d2); };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 3, v = y / H;
       let r = 0, g = 0, b = 0;
       if (bd !== 'none') { r = 0.004 + v * 0.02; g = 0.006 + v * 0.02; b = 0.02 + v * 0.05; }
-      const near = Math.exp(-(((x / W - st.flashX) / 0.4) ** 2)), lift = fl * (0.05 + 0.18 * near) * (bd === 'none' ? 0.3 : 1);
+      const gl = glowAt(x, y), lift = gl * 0.2 * (bd === 'none' ? 0.3 : 1);
       r += lift * 0.9; g += lift * 0.8; b += lift;
       const sm = smoke[y * W + x];
-      if (sm > 0) { r += sm * (0.05 + fl * 0.4); g += sm * (0.05 + fl * 0.35); b += sm * (0.07 + fl * 0.4); }
+      if (sm > 0) { r += sm * (0.05 + gl * 0.4); g += sm * (0.05 + gl * 0.35); b += sm * (0.07 + gl * 0.4); }
       buf[i] = r; buf[i + 1] = g; buf[i + 2] = b;
     }
     const keep = Math.pow(0.6, dt);
@@ -181,7 +186,7 @@ module.exports = defineCanvasEffect({
     if (bd === 'city') {
       for (let x = 0; x < W; x++) {
         const hh = (Math.sin(x * 0.9) * 43758.5453) % 1, bh = (6 + (hh < 0 ? hh + 1 : hh) * 12 * (0.5 + 0.5 * Math.sin(x * 0.17))) * H / 64;
-        for (let y = Math.round(H - bh); y < H; y++) { const i = (y * W + x) * 3, lit = fl * 0.12; buf[i] = 0.01 + lit; buf[i + 1] = 0.01 + lit; buf[i + 2] = 0.025 + lit * 1.2; if (((x * 7 + y * 13) % 23) === 0) { buf[i] += 0.5; buf[i + 1] += 0.4; buf[i + 2] += 0.1; } }
+        for (let y = Math.round(H - bh); y < H; y++) { const i = (y * W + x) * 3, lit = glowAt(x, fy) * 0.12; buf[i] = 0.01 + lit; buf[i + 1] = 0.01 + lit; buf[i + 2] = 0.025 + lit * 1.2; if (((x * 7 + y * 13) % 23) === 0) { buf[i] += 0.5; buf[i + 1] += 0.4; buf[i + 2] += 0.1; } }
       }
     }
     if (bd === 'water') {
