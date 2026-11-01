@@ -22973,8 +22973,8 @@ var PiEngine = (() => {
         return getMoonIllumination(/* @__PURE__ */ new Date()).phase;
       }
       function drawMoonText(core, face, text, su, sv) {
-        const y0 = core.SIZE - 5 - sv, plot = faceMaxPlot(core, face, 0.75, 0.8, 0.85);
-        drawString(FONT_MOON, text, su, y0, (x, y) => plot(x, 2 * y0 + 4 - y));
+        const plot = faceMaxPlot(core, face, 0.75, 0.8, 0.85);
+        drawString(FONT_MOON, text, su, 0, (x, y) => plot(x, sv + 4 - y));
       }
       var _moonScrollX = 0;
       function effectCelestial(core, dt) {

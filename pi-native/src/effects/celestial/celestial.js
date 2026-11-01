@@ -50,11 +50,13 @@ function getMoonPhase() {
 // coincidence - confirmed via a zoomed screenshot); the original browser
 // code's unflipped `v = sv + (4-row)` needed the same write-time flip
 // weatherWall.js's identical glyph pattern did.
-// The rows are turned within the glyph cell: face v counts upwards, so
-// drawn top row first they read upside down (a real report, with a photo).
+// Face v counts upwards, so the rows are written bottom-up - drawn top row
+// first they read upside down (a real report, with a photo).
 function drawMoonText(core, face, text, su, sv) {
-  const y0 = core.SIZE - 5 - sv, plot = faceMaxPlot(core, face, 0.75, 0.8, 0.85);
-  drawString(FONT_MOON, text, su, y0, (x, y) => plot(x, 2 * y0 + 4 - y));
+  // Glyph rows 0..4 land at v = sv+4 .. sv: the bottom of the face (a real
+  // report: "text should be at the bottom").
+  const plot = faceMaxPlot(core, face, 0.75, 0.8, 0.85);
+  drawString(FONT_MOON, text, su, 0, (x, y) => plot(x, sv + 4 - y));
 }
 
 // Per-effect-instance scroll state (mirrors the browser's this._moonScrollX,
