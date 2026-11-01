@@ -40,8 +40,10 @@ const FACE_LAYOUT = [
   // flip was tried first and wasn't right; a single 90° clockwise turn
   // matched the follow-up report. Classic cause: the physical Top panel
   // mounted in a different orientation than the 4 vertical side panels.
-  { chain: 2, pos: 0, rotateCW90: true }, // 4 Top
-  { chain: 2, pos: 1 }, // 5 Bottom
+  // Output 3 is wired HAT -> Bottom -> Top: the top panel showed the Bottom
+  // label (OUT 3 POS 2) - a real report with a photo.
+  { chain: 2, pos: 1, rotateCW90: true }, // 4 Top
+  { chain: 2, pos: 0 }, // 5 Bottom
 ];
 
 // Shared by load() and wsServer.js's setPanelConfig/addPanel/
