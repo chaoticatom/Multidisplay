@@ -406,6 +406,22 @@ var PiEngine = (() => {
         else s = dx > 0 ? 1 + (0.5 - dz) : 3 + (dz + 0.5);
         return [s, 1 - p.y, 4, true, false];
       }
+      function cubeScene(p, core, scene) {
+        if (p.flat) {
+          const [x2, y2, w] = sceneUV(p, core);
+          return scene(x2, y2, w);
+        }
+        const [x, y, , side, bottom] = ringUV(p);
+        let sx = x, sy = y;
+        if (!side) {
+          const dx = x - 0.5, dz = y - 0.5, d = 0.5 - Math.max(Math.abs(dx), Math.abs(dz));
+          sx = ringUV({ x: p.x, y: 0.5, z: p.z })[0];
+          sy = bottom ? 1 + d * 0.9 : -d * 0.9;
+        }
+        if (sx < 3.8) return scene(sx, sy, 4);
+        const a = scene(sx, sy, 4), b = scene(sx - 4, sy, 4), k = (sx - 3.8) / 0.2;
+        return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+      }
       function hash2(x, y) {
         let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) >>> 0;
         h = Math.imul(h ^ h >>> 13, 1274126177) >>> 0;
@@ -431,7 +447,7 @@ var PiEngine = (() => {
         const t = clamp((v - a) / (b - a));
         return t * t * (3 - 2 * t);
       };
-      module.exports = { ringUV, sceneUV, hash2, vnoise, fbm, clamp, smooth };
+      module.exports = { cubeScene, ringUV, sceneUV, hash2, vnoise, fbm, clamp, smooth };
     }
   });
 
@@ -501,6 +517,56 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var SIDE = [0, 2, 1, 3];
+      function topFoldMap(core, S, panorama) {
+        const key = S + (panorama ? "p" : "s");
+        if (core._foldMap && core._foldMap.key === key) return core._foldMap;
+        const X = core.surfX, Z = core.surfZ, edge = [];
+        SIDE.forEach((f, k) => {
+          for (let u = 0; u < S; u++) {
+            const i = core.faceMap[f][(S - 1) * S + u];
+            if (i >= 0) edge.push([X[i], Z[i], (panorama ? k * S : 0) + u]);
+          }
+        });
+        const top = [];
+        for (const i of core.faceMap[4]) {
+          if (i < 0) continue;
+          let best = 0, bd = 1e9;
+          for (let e = 0; e < edge.length; e++) {
+            const d2 = (X[i] - edge[e][0]) ** 2 + (Z[i] - edge[e][1]) ** 2;
+            if (d2 < bd) {
+              bd = d2;
+              best = e;
+            }
+          }
+          top.push([i, edge[best][2], 0.5 - Math.max(Math.abs(X[i] - 0.5), Math.abs(Z[i] - 0.5))]);
+        }
+        return core._foldMap = { key, top };
+      }
+      function foldTop(core, c, S, panorama) {
+        const { top } = topFoldMap(core, S, panorama), cb = core.colBuf;
+        let ar = 0, ag = 0, ab = 0, n = 0;
+        for (let x = 0; x < c.W; x += 2) for (let y = 0; y < 6; y += 2) {
+          const q = c.get(x, y);
+          if (q) {
+            ar += q[0];
+            ag += q[1];
+            ab += q[2];
+            n++;
+          }
+        }
+        if (n) {
+          ar /= n;
+          ag /= n;
+          ab /= n;
+        }
+        for (const [i, cx, d] of top) {
+          const q = c.get(cx, Math.min(S - 1, Math.round(d * S * 0.8))) || [0, 0, 0], fade = 1 - d * 0.9, m = d < 0.15 ? 0 : Math.min(1, (d - 0.15) / 0.3);
+          const o = i * 3;
+          cb[o] = (q[0] * (1 - m) + ar * m) * fade;
+          cb[o + 1] = (q[1] * (1 - m) + ag * m) * fade;
+          cb[o + 2] = (q[2] * (1 - m) + ab * m) * fade;
+        }
+      }
       function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
         const ctx = { t: 0, dt: 0, core: null };
         function cube(core, dt) {
@@ -554,7 +620,8 @@ var PiEngine = (() => {
             caps(core, 4, core.t);
             caps(core, 5, core.t);
           } else {
-            for (const f of [4, 5]) for (const i of core.faceMap[f]) if (i >= 0) {
+            foldTop(core, c, S, panorama);
+            for (const i of core.faceMap[5]) if (i >= 0) {
               const o = i * 3;
               core.colBuf[o] = 0;
               core.colBuf[o + 1] = 0;
@@ -10732,7 +10799,7 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { defineFieldEffect } = require_surface();
-      var { sceneUV, hash2, vnoise, clamp, smooth } = require_sceneKit();
+      var { cubeScene, sceneUV, hash2, vnoise, clamp, smooth } = require_sceneKit();
       var RIBBONS = [
         { base: 0.55, a: 0.1, f: 1.3, s: 0.22, h: 0.45, k: 1 },
         { base: 0.45, a: 0.08, f: 2.1, s: -0.17, h: 0.35, k: 0.75 },
@@ -10741,41 +10808,46 @@ var PiEngine = (() => {
       module.exports = defineFieldEffect({
         fine: true,
         speed: 0.6,
+        // On the cube one sky wraps round the sides, with the top carrying on
+        // overhead (see sceneKit's cubeScene).
         pixel(p, { t, core }) {
-          const [x, y] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
-          let r = 5e-3 + 0.02 * y, g = 0.01 + 0.03 * y, b = 0.03 + 0.05 * y;
-          const cx = Math.floor(x * 46), cy = Math.floor(y * 46), sh = hash2(cx, cy);
-          if (sh > 0.975 && y < 0.7) {
-            const tw = 0.5 + 0.5 * Math.sin(t * (1.5 + sh * 4) + sh * 50);
-            const dx = x * 46 - cx - 0.5, dy = y * 46 - cy - 0.5;
-            const k = Math.max(0, 1 - (dx * dx + dy * dy) * 6) * 0.45 * tw;
-            r += k;
-            g += k;
-            b += k;
-          }
-          let ar = 0, ag = 0, ab = 0;
-          for (const R of RIBBONS) {
-            const foot = R.base + R.a * Math.sin(x * R.f + t * R.s) + 0.03 * Math.sin(x * R.f * 2.7 - t * R.s * 1.7) + 0.02 * (vnoise(x * 3 + t * 0.2, R.base * 10) - 0.5);
-            const d = foot - y;
-            if (d < -0.02 || d > R.h) continue;
-            const rays = 0.15 + 1.1 * Math.pow(vnoise(x * 30 + Math.sin(t * 0.7 + x * 2) * 1.5, t * 0.4), 2.4);
-            const up = d < 0 ? Math.max(0, 1 + d / 0.02) : Math.exp(-d / (R.h * 0.45)) * (1 - smooth(R.h * 0.7, R.h, d));
-            const k = up * rays * R.k * (0.85 + 0.5 * lvl), hgt = clamp(d / R.h);
-            ar += k * (0.15 + 0.85 * smooth(0.45, 1, hgt));
-            ag += k * (1 - 0.75 * smooth(0.3, 1, hgt));
-            ab += k * (0.35 + 0.55 * smooth(0.2, 0.9, hgt));
-          }
-          r += ar * 0.85;
-          g += ag * 0.9;
-          b += ab * 0.85;
-          const hill = 0.8 + 0.06 * Math.sin(x * 2.3 + 1) + 0.04 * Math.sin(x * 5.1) + 0.02 * vnoise(x * 9, 3);
-          if (y > hill) {
-            const rim = Math.exp(-(y - hill) * 90) * 0.18;
-            return [4e-3 + rim * 0.2, 8e-3 + rim, 0.012 + rim * 0.5];
-          }
-          return [Math.min(1.2, r), Math.min(1.2, g), Math.min(1.2, b)];
+          const lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+          return cubeScene(p, core, (x, y) => sky(x, y, t, lvl));
         }
       });
+      function sky(x, y, t, lvl) {
+        let r = 5e-3 + 0.02 * y, g = 0.01 + 0.03 * y, b = 0.03 + 0.05 * y;
+        const cx = Math.floor(x * 46), cy = Math.floor(y * 46), sh = hash2(cx, cy);
+        if (sh > 0.975 && y < 0.7) {
+          const tw = 0.5 + 0.5 * Math.sin(t * (1.5 + sh * 4) + sh * 50);
+          const dx = x * 46 - cx - 0.5, dy = y * 46 - cy - 0.5;
+          const k = Math.max(0, 1 - (dx * dx + dy * dy) * 6) * 0.45 * tw;
+          r += k;
+          g += k;
+          b += k;
+        }
+        let ar = 0, ag = 0, ab = 0;
+        for (const R of RIBBONS) {
+          const foot = R.base + R.a * Math.sin(x * R.f + t * R.s) + 0.03 * Math.sin(x * R.f * 2.7 - t * R.s * 1.7) + 0.02 * (vnoise(x * 3 + t * 0.2, R.base * 10) - 0.5);
+          const d = foot - y;
+          if (d < -0.02 || d > R.h) continue;
+          const rays = 0.15 + 1.1 * Math.pow(vnoise(x * 30 + Math.sin(t * 0.7 + x * 2) * 1.5, t * 0.4), 2.4);
+          const up = d < 0 ? Math.max(0, 1 + d / 0.02) : Math.exp(-d / (R.h * 0.45)) * (1 - smooth(R.h * 0.7, R.h, d));
+          const k = up * rays * R.k * (0.85 + 0.5 * lvl), hgt = clamp(d / R.h);
+          ar += k * (0.15 + 0.85 * smooth(0.45, 1, hgt));
+          ag += k * (1 - 0.75 * smooth(0.3, 1, hgt));
+          ab += k * (0.35 + 0.55 * smooth(0.2, 0.9, hgt));
+        }
+        r += ar * 0.85;
+        g += ag * 0.9;
+        b += ab * 0.85;
+        const hill = 0.8 + 0.06 * Math.sin(x * 2.3 + 1) + 0.04 * Math.sin(x * 5.1) + 0.02 * vnoise(x * 9, 3);
+        if (y > hill) {
+          const rim = Math.exp(-(y - hill) * 90) * 0.18;
+          return [4e-3 + rim * 0.2, 8e-3 + rim, 0.012 + rim * 0.5];
+        }
+        return [clamp(r, 0, 1.2), clamp(g, 0, 1.2), clamp(b, 0, 1.2)];
+      }
     }
   });
 
@@ -11019,16 +11091,32 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { defineFieldEffect } = require_surface();
-      var { sceneUV, hash2, clamp, smooth } = require_sceneKit();
+      var { ringUV, sceneUV, hash2, clamp, smooth } = require_sceneKit();
       var CYCLE = 12;
       module.exports = defineFieldEffect({
         fine: true,
         speed: 1,
         pixel(p, { t, core }) {
-          const [x, y, w] = sceneUV(p, core), opts = core && core.effectOptions && core.effectOptions.lightspeed || {};
+          const opts = core && core.effectOptions && core.effectOptions.lightspeed || {};
           const sp = clamp((Number(opts.speed) || 8) / 8, 0.25, 2), ph = t * sp % CYCLE / CYCLE;
           const warp = smooth(0.15, 0.6, ph) * (1 - smooth(0.78, 0.9, ph)), flash = Math.exp(-(((ph - 0.72) / 0.025) ** 2));
-          const dx = x - w / 2, dy = y - 0.5, r = Math.sqrt(dx * dx + dy * dy), ang = Math.atan2(dy, dx);
+          let r, ang;
+          if (p.flat) {
+            const [x, y, w] = sceneUV(p, core), dx = x - w / 2, dy = y - 0.5;
+            r = Math.sqrt(dx * dx + dy * dy);
+            ang = Math.atan2(dy, dx);
+          } else {
+            const [x, y, , side, bottom] = ringUV(p);
+            if (side) {
+              r = 0.27 + y * 0.6;
+              ang = x / 4 * 2 * Math.PI - Math.PI;
+            } else if (bottom) return [4e-3, 6e-3, 0.02];
+            else {
+              const dx = x - 0.5, dz = y - 0.5;
+              r = Math.max(Math.abs(dx), Math.abs(dz)) * 0.54;
+              ang = ringUV({ x: p.x, y: 0.5, z: p.z })[0] / 4 * 2 * Math.PI - Math.PI;
+            }
+          }
           const N = 260, idx = Math.floor((ang / (2 * Math.PI) + 0.5) * N), off = (ang / (2 * Math.PI) + 0.5) * N - idx - 0.5;
           let R = 4e-3, G = 6e-3, B = 0.02;
           const tg = warp * Math.exp(-r * 2.5) * 0.35;

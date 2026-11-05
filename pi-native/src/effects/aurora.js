@@ -6,7 +6,7 @@
 'use strict';
 
 const { defineFieldEffect } = require('./surface');
-const { sceneUV, hash2, vnoise, clamp, smooth } = require('./sceneKit');
+const { cubeScene, sceneUV, hash2, vnoise, clamp, smooth } = require('./sceneKit');
 
 const RIBBONS = [
   { base: 0.55, a: 0.1, f: 1.3, s: 0.22, h: 0.45, k: 1 },
@@ -17,8 +17,15 @@ const RIBBONS = [
 module.exports = defineFieldEffect({
   fine: true,
   speed: 0.6,
+  // On the cube one sky wraps round the sides, with the top carrying on
+  // overhead (see sceneKit's cubeScene).
   pixel(p, { t, core }) {
-    const [x, y] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+    const lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+    return cubeScene(p, core, (x, y) => sky(x, y, t, lvl));
+  },
+});
+
+function sky(x, y, t, lvl) {
     // Night sky, lighter at the horizon.
     let r = 0.005 + 0.02 * y, g = 0.01 + 0.03 * y, b = 0.03 + 0.05 * y;
     // Stars (fainter behind the light).
@@ -40,6 +47,6 @@ module.exports = defineFieldEffect({
     // Hills: a dark ridge with a faint green rim lit by the aurora.
     const hill = 0.8 + 0.06 * Math.sin(x * 2.3 + 1) + 0.04 * Math.sin(x * 5.1) + 0.02 * vnoise(x * 9, 3);
     if (y > hill) { const rim = Math.exp(-(y - hill) * 90) * 0.18; return [0.004 + rim * 0.2, 0.008 + rim, 0.012 + rim * 0.5]; }
-    return [Math.min(1.2, r), Math.min(1.2, g), Math.min(1.2, b)];
-  },
-});
+    return [clamp(r, 0, 1.2), clamp(g, 0, 1.2), clamp(b, 0, 1.2)]; // y < 0 (the cube's top) can take the sky below zero
+}
+
