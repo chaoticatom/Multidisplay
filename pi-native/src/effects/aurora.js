@@ -17,11 +17,11 @@ const RIBBONS = [
 module.exports = defineFieldEffect({
   fine: true,
   speed: 0.6,
-  // On the cube one sky wraps round the sides, with the top carrying on
-  // overhead (see sceneKit's cubeScene).
+  // On the cube one sky wraps round the sides, with the curtains folded over
+  // the top (see sceneKit's cubeScene).
   pixel(p, { t, core }) {
     const lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
-    return cubeScene(p, core, (x, y) => sky(x, y, t, lvl));
+    return cubeScene(p, core, (x, y) => sky(x, y, t, lvl), true); // the curtains folded over the top
   },
 });
 

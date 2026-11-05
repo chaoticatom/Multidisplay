@@ -7,13 +7,18 @@
 'use strict';
 
 const { defineFieldEffect } = require('./surface');
-const { sceneUV, vnoise, clamp, smooth } = require('./sceneKit');
+const { cubeScene, sceneUV, vnoise, clamp, smooth } = require('./sceneKit');
 
 module.exports = defineFieldEffect({
   fine: true,
   speed: 0.5,
-  pixel(p, { t, core }) {
-    const [x, y, w] = sceneUV(p, core), HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
+  // On the cube one beach wraps round the sides (one sun), the sky carries
+  // on over the top and the sand under the bottom (sceneKit's cubeScene).
+  pixel(p, { t, core }) { return cubeScene(p, core, (x, y, w) => beach(x, y, w, t)); },
+});
+
+function beach(x, y, w, t) {
+    const HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
     // The wash: slides up the beach and back, rippling along its edge.
     const wash = 0.7 + 0.07 * Math.sin(t * 0.55) + 0.025 * Math.sin(x * 4 + t * 0.9) + 0.015 * (vnoise(x * 6, t * 0.3) - 0.5);
     if (y < HOR) {
@@ -42,5 +47,5 @@ module.exports = defineFieldEffect({
     let r = (0.62 - 0.35 * wet) * grain, g = (0.47 - 0.25 * wet) * grain, b = (0.3 - 0.12 * wet) * grain;
     const shine = wet * Math.exp(-Math.abs(x - sunX) * 5) * 0.4; r += shine; g += shine * 0.75; b += shine * 0.45;
     return [r * 0.8, g * 0.8, b * 0.8];
-  },
-});
+}
+

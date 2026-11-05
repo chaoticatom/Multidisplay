@@ -30,17 +30,19 @@ function ringUV(p) {
 // as one band (x 0..4, blended over the seam), the top carrying on above
 // them (y below 0, in from the edge it faces) and the bottom below them (y
 // above 1). On a wall it's the plain sceneUV() picture.
-function cubeScene(p, core, scene) {
+function cubeScene(p, core, scene, fold = false) { // fold: the top mirrors the sides' top band instead of carrying on above it
   if (p.flat) { const [x, y, w] = sceneUV(p, core); return scene(x, y, w); }
   const [x, y, , side, bottom] = ringUV(p);
   let sx = x, sy = y;
   if (!side) {
     const dx = x - 0.5, dz = y - 0.5, d = 0.5 - Math.max(Math.abs(dx), Math.abs(dz));
-    sx = ringUV({ x: p.x, y: 0.5, z: p.z })[0]; sy = bottom ? 1 + d * 0.9 : -d * 0.9;
+    sx = ringUV({ x: p.x, y: 0.5, z: p.z })[0]; sy = bottom ? 1 + d * 0.9 : fold ? d * 0.9 : -d * 0.9;
   }
-  if (sx < 3.8) return scene(sx, sy, 4);
-  const a = scene(sx, sy, 4), b = scene(sx - 4, sy, 4), k = (sx - 3.8) / 0.2;
-  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+  // Clamped at 0: a scene taken past its top or bottom edge can go negative.
+  const a = scene(sx, sy, 4);
+  if (sx < 3.8) return [Math.max(0, a[0]), Math.max(0, a[1]), Math.max(0, a[2])];
+  const b = scene(sx - 4, sy, 4), k = (sx - 3.8) / 0.2;
+  return [Math.max(0, a[0] + (b[0] - a[0]) * k), Math.max(0, a[1] + (b[1] - a[1]) * k), Math.max(0, a[2] + (b[2] - a[2]) * k)];
 }
 function hash2(x, y) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function vnoise(x, y) {

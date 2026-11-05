@@ -11,7 +11,7 @@ const { tempo } = require('./audioFeatures');
 
 const CELL = 4;
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-const g = { cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
+const g = { wrap: false, cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
 
 function reset(cols, rows) {
   g.cols = cols; g.rows = rows;
@@ -25,25 +25,30 @@ function placeFood() {
     if (!g.body.some((b) => b[0] === f[0] && b[1] === f[1])) { g.food = f; return; }
   }
 }
-const blocked = (x, y) => x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y);
+// Round the cube (wrap) the snake runs on from one side onto the next: no side walls.
+const wx = (x) => (g.wrap ? ((x % g.cols) + g.cols) % g.cols : x);
+const blocked = (x, y) => (x = wx(x), x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y));
 function autopilot() {
   const [hx, hy] = g.body[0];
   const opts = Object.values(DIRS).filter(([dx, dy]) => !(dx === -g.dir[0] && dy === -g.dir[1]) && !blocked(hx + dx, hy + dy));
   if (!opts.length) return;
-  opts.sort((a, b) => (Math.abs(hx + a[0] - g.food[0]) + Math.abs(hy + a[1] - g.food[1])) - (Math.abs(hx + b[0] - g.food[0]) + Math.abs(hy + b[1] - g.food[1])));
+  const dist = (x, y) => { let dx = Math.abs(wx(x) - g.food[0]); if (g.wrap) dx = Math.min(dx, g.cols - dx); return dx + Math.abs(y - g.food[1]); };
+  opts.sort((a, b) => dist(hx + a[0], hy + a[1]) - dist(hx + b[0], hy + b[1]));
   g.dir = opts[0];
 }
 function step() {
   if (g.dead > 0) { g.dead -= 1; if (g.dead === 0) reset(g.cols, g.rows); return; }
   if (g.now > g.manualUntil) autopilot();
-  const nx = g.body[0][0] + g.dir[0], ny = g.body[0][1] + g.dir[1];
+  const nx = wx(g.body[0][0] + g.dir[0]), ny = g.body[0][1] + g.dir[1];
   if (blocked(nx, ny)) { g.best = Math.max(g.best, g.body.length - 3); g.dead = 12; return; }
   g.body.unshift([nx, ny]);
   if (nx === g.food[0] && ny === g.food[1]) placeFood(); else g.body.pop();
 }
 
 module.exports = defineCanvasEffect({
+  panorama: true,
   render(c, { t, dt, core }) {
+    g.wrap = !!c.wrap;
     const cols = Math.floor(c.W / CELL), rows = Math.floor(c.H / CELL);
     if (cols !== g.cols || rows !== g.rows || !g.body.length) reset(cols, rows);
     g.now = t;
@@ -64,7 +69,7 @@ module.exports = defineCanvasEffect({
     // Board: dark with a faint checker and a soft vignette.
     for (let y = 0; y < rows * CELL; y++) for (let x = 0; x < cols * CELL; x++) {
       const chk = ((Math.floor(x / CELL) + Math.floor(y / CELL)) % 2) ? 0.012 : 0;
-      const v = 1 - Math.hypot(x / (cols * CELL) - 0.5, y / (rows * CELL) - 0.5) * 0.9;
+      const v = 1 - Math.hypot(g.wrap ? 0 : x / (cols * CELL) - 0.5, y / (rows * CELL) - 0.5) * 0.9; // round the cube: no dark ends
       c.set(ox + x, oy + y, (0.01 + chk) * v, (0.02 + chk * 1.4) * v, (0.03 + chk * 1.8) * v);
     }
     // Rounded, shaded blob of a given size centred in a cell (px,py = pixel centre).

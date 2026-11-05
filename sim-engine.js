@@ -406,7 +406,7 @@ var PiEngine = (() => {
         else s = dx > 0 ? 1 + (0.5 - dz) : 3 + (dz + 0.5);
         return [s, 1 - p.y, 4, true, false];
       }
-      function cubeScene(p, core, scene) {
+      function cubeScene(p, core, scene, fold = false) {
         if (p.flat) {
           const [x2, y2, w] = sceneUV(p, core);
           return scene(x2, y2, w);
@@ -416,11 +416,12 @@ var PiEngine = (() => {
         if (!side) {
           const dx = x - 0.5, dz = y - 0.5, d = 0.5 - Math.max(Math.abs(dx), Math.abs(dz));
           sx = ringUV({ x: p.x, y: 0.5, z: p.z })[0];
-          sy = bottom ? 1 + d * 0.9 : -d * 0.9;
+          sy = bottom ? 1 + d * 0.9 : fold ? d * 0.9 : -d * 0.9;
         }
-        if (sx < 3.8) return scene(sx, sy, 4);
-        const a = scene(sx, sy, 4), b = scene(sx - 4, sy, 4), k = (sx - 3.8) / 0.2;
-        return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+        const a = scene(sx, sy, 4);
+        if (sx < 3.8) return [Math.max(0, a[0]), Math.max(0, a[1]), Math.max(0, a[2])];
+        const b = scene(sx - 4, sy, 4), k = (sx - 3.8) / 0.2;
+        return [Math.max(0, a[0] + (b[0] - a[0]) * k), Math.max(0, a[1] + (b[1] - a[1]) * k), Math.max(0, a[2] + (b[2] - a[2]) * k)];
       }
       function hash2(x, y) {
         let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) >>> 0;
@@ -2358,7 +2359,7 @@ var PiEngine = (() => {
       var { tempo } = require_audioFeatures();
       var CELL = 4;
       var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
-      var g = { cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
+      var g = { wrap: false, cols: 0, rows: 0, body: [], dir: [1, 0], food: null, acc: 0, lastPress: -1, manualUntil: 0, dead: 0, best: 0, now: 0 };
       function reset(cols, rows) {
         g.cols = cols;
         g.rows = rows;
@@ -2377,12 +2378,18 @@ var PiEngine = (() => {
           }
         }
       }
-      var blocked = (x, y) => x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y);
+      var wx = (x) => g.wrap ? (x % g.cols + g.cols) % g.cols : x;
+      var blocked = (x, y) => (x = wx(x), x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.body.slice(0, -1).some((b) => b[0] === x && b[1] === y));
       function autopilot() {
         const [hx, hy] = g.body[0];
         const opts = Object.values(DIRS).filter(([dx, dy]) => !(dx === -g.dir[0] && dy === -g.dir[1]) && !blocked(hx + dx, hy + dy));
         if (!opts.length) return;
-        opts.sort((a, b) => Math.abs(hx + a[0] - g.food[0]) + Math.abs(hy + a[1] - g.food[1]) - (Math.abs(hx + b[0] - g.food[0]) + Math.abs(hy + b[1] - g.food[1])));
+        const dist = (x, y) => {
+          let dx = Math.abs(wx(x) - g.food[0]);
+          if (g.wrap) dx = Math.min(dx, g.cols - dx);
+          return dx + Math.abs(y - g.food[1]);
+        };
+        opts.sort((a, b) => dist(hx + a[0], hy + a[1]) - dist(hx + b[0], hy + b[1]));
         g.dir = opts[0];
       }
       function step() {
@@ -2392,7 +2399,7 @@ var PiEngine = (() => {
           return;
         }
         if (g.now > g.manualUntil) autopilot();
-        const nx = g.body[0][0] + g.dir[0], ny = g.body[0][1] + g.dir[1];
+        const nx = wx(g.body[0][0] + g.dir[0]), ny = g.body[0][1] + g.dir[1];
         if (blocked(nx, ny)) {
           g.best = Math.max(g.best, g.body.length - 3);
           g.dead = 12;
@@ -2403,7 +2410,9 @@ var PiEngine = (() => {
         else g.body.pop();
       }
       module.exports = defineCanvasEffect({
+        panorama: true,
         render(c, { t, dt, core }) {
+          g.wrap = !!c.wrap;
           const cols = Math.floor(c.W / CELL), rows = Math.floor(c.H / CELL);
           if (cols !== g.cols || rows !== g.rows || !g.body.length) reset(cols, rows);
           g.now = t;
@@ -2426,7 +2435,7 @@ var PiEngine = (() => {
           const ox = Math.floor((c.W - cols * CELL) / 2), oy = Math.floor((c.H - rows * CELL) / 2);
           for (let y = 0; y < rows * CELL; y++) for (let x = 0; x < cols * CELL; x++) {
             const chk = (Math.floor(x / CELL) + Math.floor(y / CELL)) % 2 ? 0.012 : 0;
-            const v = 1 - Math.hypot(x / (cols * CELL) - 0.5, y / (rows * CELL) - 0.5) * 0.9;
+            const v = 1 - Math.hypot(g.wrap ? 0 : x / (cols * CELL) - 0.5, y / (rows * CELL) - 0.5) * 0.9;
             c.set(ox + x, oy + y, (0.01 + chk) * v, (0.02 + chk * 1.4) * v, (0.03 + chk * 1.8) * v);
           }
           const blob = (px, py, rad, col, gloss) => {
@@ -9589,258 +9598,6 @@ var PiEngine = (() => {
     }
   });
 
-  // src/effects/rocket3d.js
-  var require_rocket3d = __commonJS({
-    "src/effects/rocket3d.js"(exports, module) {
-      "use strict";
-      init_define_process_env();
-      init_bufferGlobal();
-      var clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
-      var sm = (e0, e1, x) => {
-        const t = clamp((x - e0) / (e1 - e0));
-        return t * t * (3 - 2 * t);
-      };
-      var mix = (a, b, t) => a + (b - a) * t;
-      function smin(a, b, k) {
-        const h = clamp(0.5 + 0.5 * (b - a) / k);
-        return mix(b, a, h) - k * h * (1 - h);
-      }
-      var len2 = (a, b) => Math.sqrt(a * a + b * b);
-      var len3 = (a, b, c) => Math.sqrt(a * a + b * b + c * c);
-      function norm3(x, y, z) {
-        const n = len3(x, y, z);
-        return [x / n, y / n, z / n];
-      }
-      function capY(x, y, z, y0, y1, r0, r1) {
-        const h = clamp((y - y0) / (y1 - y0));
-        return len3(x, y - (y0 + (y1 - y0) * h), z) - (r0 + (r1 - r0) * h);
-      }
-      var CYCLE = 6;
-      var R = { pos: [0, 0, 0], f: [0, 0, 1], u: [0, 1, 0], s: [1, 0, 0], portal: [0, -0.1], bound: null, flame: 1, t: 0 };
-      function buildPose(t) {
-        const n = Math.floor(t / CYCLE), c = t % CYCLE / CYCLE;
-        const side = n % 2 ? 1 : -1, lift = 0.25 + 0.15 * Math.sin(n * 2.1);
-        const z = -1.2 + 4.3 * Math.pow(c, 1.25);
-        const x = side * (0.05 + 0.35 * c * c) + 0.08 * Math.sin(t * 3.1);
-        const y = -0.15 + lift * c * c + 0.06 * Math.sin(t * 2.3 + 1);
-        R.pos = [x, y, z];
-        const f = norm3(side * (0.5 + 0.6 * c) + 0.12 * Math.cos(t * 3.1), 0.35 + lift * c + 0.1 * Math.cos(t * 2.3 + 1), 1.6);
-        let up = Math.abs(f[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0];
-        let s = norm3(up[1] * f[2] - up[2] * f[1], up[2] * f[0] - up[0] * f[2], up[0] * f[1] - up[1] * f[0]);
-        let u = [f[1] * s[2] - f[2] * s[1], f[2] * s[0] - f[0] * s[2], f[0] * s[1] - f[1] * s[0]];
-        const roll = t * 2.2, cr = Math.cos(roll), sr = Math.sin(roll);
-        const s2 = [s[0] * cr + u[0] * sr, s[1] * cr + u[1] * sr, s[2] * cr + u[2] * sr];
-        const u2 = [u[0] * cr - s[0] * sr, u[1] * cr - s[1] * sr, u[2] * cr - s[2] * sr];
-        R.f = f;
-        R.s = s2;
-        R.u = u2;
-        R.flame = 0.85 + 0.15 * Math.sin(t * 37) * Math.sin(t * 23);
-        const c0 = Math.pow(1.2 / 4.3, 1 / 1.25);
-        R.portal = [side * (0.05 + 0.35 * c0 * c0), -0.15 + lift * c0 * c0];
-        R.glow = sm(0.05, 0.15, c) * (1 - sm(0.75, 1, c)) + 0.25;
-        R.bound = [x, y, z, 1.25];
-        R.t = t;
-      }
-      function toLocal(px, py, pz) {
-        const x = px - R.pos[0], y = py - R.pos[1], z = pz - R.pos[2];
-        return [x * R.s[0] + y * R.s[1] + z * R.s[2], x * R.f[0] + y * R.f[1] + z * R.f[2], x * R.u[0] + y * R.u[1] + z * R.u[2]];
-      }
-      var M = { id: 0 };
-      function sdfLocal(x, y, z, want) {
-        const body = capY(x, y, z, -0.42, 0.42, 0.155, 0.17);
-        const nose = capY(x, y, z, 0.42, 0.88, 0.17, 0.025);
-        let d = smin(body, nose, 0.04);
-        const nozzle = Math.max(capY(x, y, z, -0.56, -0.42, 0.115, 0.1), -(len2(x, z) - 0.075));
-        d = Math.min(d, nozzle);
-        let fin = 1e9;
-        const a = Math.atan2(z, x), r = len2(x, z);
-        const k = Math.round(a / (2 * Math.PI / 3)) * (2 * Math.PI / 3), ang = a - k;
-        const fx = r * Math.cos(ang), fz = r * Math.sin(ang);
-        {
-          const lx = fx - 0.28, ly = y + 0.32 - (fx - 0.17) * 0.8;
-          const qx = Math.abs(lx) - 0.115, qy = Math.abs(ly) - 0.15 + 0.3 * (lx + 0.115), qz = Math.abs(fz) - 0.026;
-          fin = (len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.012) * 0.8;
-        }
-        d = smin(d, fin, 0.02);
-        if (want) {
-          const wd = len2(x, y - 0.18);
-          if (d === nozzle || nozzle < 4e-3) M.id = 2;
-          else if (fin < body - 5e-3 && fin < nose) M.id = 1;
-          else if (z > 0.05 && wd < 0.06) M.id = 3;
-          else if (z > 0.05 && wd < 0.078) M.id = 4;
-          else if (y > 0.5 || y > -0.08 && y < 0.02 || y < -0.33) M.id = 1;
-          else M.id = 0;
-        }
-        return d;
-      }
-      function sdf(px, py, pz, want) {
-        const l = toLocal(px, py, pz);
-        return sdfLocal(l[0], l[1], l[2], want);
-      }
-      function flameDist(px, py, pz) {
-        const l = toLocal(px, py, pz), len = 0.85 * R.flame;
-        return capY(l[0], l[1], l[2], -0.56 - len, -0.5, 0.02, 0.1) + 0.02 * Math.sin(l[1] * 40 + R.t * 50);
-      }
-      var CAM_Z = 3.4;
-      var FOV = 2.85;
-      var KEY = norm3(-0.6, 0.65, 0.45);
-      var KEY_COL = [1, 0.95, 0.88];
-      function screenColour(x, y, t, shadow) {
-        const r = len2(x - R.portal[0], (y - R.portal[1]) * 1.6);
-        const ring = Math.exp(-((r - 0.45) ** 2) / 6e-3) * R.glow;
-        const ripple = 0.5 + 0.5 * Math.sin(r * 18 - t * 5);
-        const fall = Math.exp(-r * 1.5);
-        const grid = Math.abs((x * 12 % 1 + 1) % 1 - 0.5) > 0.46 || Math.abs((y * 12 % 1 + 1) % 1 - 0.5) > 0.46 ? 0.012 : 0;
-        const cr = 0.02 + grid + fall * ripple * 0.05 + ring * 0.15, cg = 0.025 + grid + fall * ripple * 0.11 + ring * 0.55, cb = 0.04 + grid + fall * ripple * 0.18 + ring * 0.85;
-        const sh = 1 - 0.4 * shadow;
-        return [cr * sh, cg * sh, cb * sh];
-      }
-      function envColour(dy) {
-        const b = sm(0.2, -0.8, dy);
-        return [0.04 + 0.1 * b, 0.05 + 0.35 * b, 0.07 + 0.55 * b];
-      }
-      var PAINT = [[0.92, 0.92, 0.9], [0.85, 0.08, 0.06], [0.16, 0.15, 0.15], [0.08, 0.14, 0.25], [0.75, 0.76, 0.8]];
-      var GLOSS = [60, 60, 25, 120, 90];
-      var REFL = [0.12, 0.12, 0.25, 0.5, 0.65];
-      function shadePixel(sx, sy, t) {
-        const oz = CAM_Z;
-        let dx = sx * FOV, dy = sy * FOV, dz = -CAM_Z;
-        const n = len3(dx, dy, dz);
-        dx /= n;
-        dy /= n;
-        dz /= n;
-        const B = R.bound, bx = B[0], by = B[1], bz = B[2] - oz, tb = bx * dx + by * dy + bz * dz;
-        const miss = bx * bx + by * by + bz * bz - tb * tb > B[3] * B[3];
-        const tPlane = -oz / dz;
-        let tt = miss ? tPlane : Math.max(0, tb - B[3]), hitIt = false, glowMin = 1e9;
-        if (!miss) {
-          for (let i = 0; i < 64 && tt < tPlane; i++) {
-            const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
-            const fd = flameDist(px, py, pz);
-            if (fd < glowMin) glowMin = fd;
-            const d = sdf(px, py, pz, false);
-            if (d < 2e-3) {
-              hitIt = true;
-              break;
-            }
-            tt += Math.max(3e-3, Math.min(d, Math.max(fd, 0.02)) * 0.6);
-          }
-        }
-        const g = glowMin < 1e8 ? Math.exp(-Math.max(0, glowMin) * 16) * R.flame : 0;
-        const flame = [g * 1.6, g * g * 1.1 + g * 0.25, g * g * g * 0.9];
-        let col;
-        if (!hitIt) {
-          const px = dx * tPlane, py = dy * tPlane;
-          let shadow = 0;
-          if (!miss && R.pos[2] > -0.3) {
-            let k = 1, s = 0.05;
-            for (let i = 0; i < 12 && s < 3; i++) {
-              const d = sdf(px + KEY[0] * s, py + KEY[1] * s, KEY[2] * s, false);
-              k = Math.min(k, 8 * d / s);
-              s += clamp(d, 0.05, 0.4);
-              if (k < 0.01) break;
-            }
-            shadow = 1 - clamp(k);
-          }
-          col = screenColour(px, py, t, shadow);
-        } else {
-          const px = dx * tt, py = dy * tt, pz = oz + dz * tt;
-          sdf(px, py, pz, true);
-          const id = M.id;
-          const e = 2e-3;
-          const a1 = sdf(px + e, py - e, pz - e), a2 = sdf(px - e, py - e, pz + e), a3 = sdf(px - e, py + e, pz - e), a4 = sdf(px + e, py + e, pz + e);
-          let nx = a1 - a2 - a3 + a4, ny = -a1 - a2 + a3 + a4, nz = -a1 + a2 - a3 + a4;
-          const nn = len3(nx, ny, nz) || 1;
-          nx /= nn;
-          ny /= nn;
-          nz /= nn;
-          const ndl = clamp(nx * KEY[0] + ny * KEY[1] + nz * KEY[2]);
-          const vx = -dx, vy = -dy, vz = -dz, ndv = clamp(nx * vx + ny * vy + nz * vz);
-          const hx = KEY[0] + vx, hy = KEY[1] + vy, hz = KEY[2] + vz, hn = len3(hx, hy, hz);
-          const spec = Math.pow(clamp((nx * hx + ny * hy + nz * hz) / hn), GLOSS[id]) * (id === 2 ? 0.3 : 1.1);
-          const rdy = dy - 2 * (dx * nx + dy * ny + dz * nz) * ny;
-          const env = envColour(rdy), fres = REFL[id] + (1 - REFL[id]) * Math.pow(1 - ndv, 5) * 0.6;
-          const l = toLocal(px, py, pz), tail = Math.exp(-Math.max(0, l[1] + 0.5) * 6) * R.flame;
-          const base = PAINT[id];
-          col = [0, 1, 2].map((k) => {
-            const diff = base[k] * (0.1 + 0.9 * ndl * KEY_COL[k]);
-            return mix(diff, env[k], fres) + spec * KEY_COL[k] + tail * [0.5, 0.25, 0.05][k] * base[k];
-          });
-          if (pz < 0) {
-            const pr = len2(px - R.portal[0], (py - R.portal[1]) * 1.6);
-            const through = sm(0.45, 0.38, pr);
-            const sc = screenColour(px, py, t, 0);
-            col = [mix(sc[0], col[0] * 0.8 + 0.05, through), mix(sc[1], col[1] * 0.8 + 0.2, through), mix(sc[2], col[2] * 0.8 + 0.3, through)];
-          }
-        }
-        return [col[0] + flame[0], col[1] + flame[1], col[2] + flame[2]];
-      }
-      var st = { t: 0, frame: 0, img: null, size: 0 };
-      var PASSES = 4;
-      function render(S) {
-        const first = !st.img || st.size !== S;
-        if (first) {
-          st.img = new Float32Array(S * S * 3);
-          st.back = new Float32Array(S * S * 3);
-          st.size = S;
-          st.frame = 0;
-        }
-        const pass = first ? 0 : st.frame++ % PASSES;
-        if (pass === 0) {
-          buildPose(st.t);
-          st.rt = st.t;
-        }
-        if (first) {
-          for (let k = 0; k < PASSES; k++) renderRows(S, k);
-          st.img.set(st.back);
-          return;
-        }
-        renderRows(S, pass);
-        if (pass === PASSES - 1) {
-          const tmp = st.img;
-          st.img = st.back;
-          st.back = tmp;
-        }
-      }
-      function renderRows(S, pass) {
-        for (let y = pass; y < S; y += PASSES) for (let x = 0; x < S; x++) {
-          const c = shadePixel((x + 0.5) / S - 0.5, 0.5 - (y + 0.5) / S, st.rt), o = (y * S + x) * 3;
-          st.back[o] = c[0];
-          st.back[o + 1] = c[1];
-          st.back[o + 2] = c[2];
-        }
-      }
-      function rocket3dWall(core, dt) {
-        if (!core.wallW) return;
-        st.t += dt;
-        const W = core.wallW, H = core.wallH, S = H, x0 = Math.floor((W - S) / 2);
-        render(S);
-        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-          if (x >= x0 && x < x0 + S) {
-            const o = (y * S + (x - x0)) * 3;
-            core.setWallPixel(x, y, st.img[o], st.img[o + 1], st.img[o + 2]);
-            continue;
-          }
-          const c = screenColour(((x - x0 + 0.5) / S - 0.5) * FOV, (0.5 - (y + 0.5) / S) * FOV, st.t, 0);
-          core.setWallPixel(x, y, c[0], c[1], c[2]);
-        }
-      }
-      function rocket3d(core, dt) {
-        st.t += dt;
-        const S = core.SIZE;
-        render(S);
-        for (let i = 0; i < core.colBuf.length; i++) core.colBuf[i] = 0;
-        for (let v = 0; v < S; v++) for (let u = 0; u < S; u++) {
-          const o = ((S - 1 - v) * S + u) * 3;
-          core.setFaceLED(0, u, v, st.img[o], st.img[o + 1], st.img[o + 2]);
-        }
-      }
-      rocket3d.wall = rocket3dWall;
-      rocket3d._test = { st, buildPose, shadePixel, R };
-      module.exports = rocket3d;
-    }
-  });
-
   // src/effects/faceRender.js
   var require_faceRender = __commonJS({
     "src/effects/faceRender.js"(exports, module) {
@@ -10808,11 +10565,11 @@ var PiEngine = (() => {
       module.exports = defineFieldEffect({
         fine: true,
         speed: 0.6,
-        // On the cube one sky wraps round the sides, with the top carrying on
-        // overhead (see sceneKit's cubeScene).
+        // On the cube one sky wraps round the sides, with the curtains folded over
+        // the top (see sceneKit's cubeScene).
         pixel(p, { t, core }) {
           const lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
-          return cubeScene(p, core, (x, y) => sky(x, y, t, lvl));
+          return cubeScene(p, core, (x, y) => sky(x, y, t, lvl), true);
         }
       });
       function sky(x, y, t, lvl) {
@@ -21135,52 +20892,57 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { defineFieldEffect } = require_surface();
-      var { sceneUV, vnoise, clamp, smooth } = require_sceneKit();
+      var { cubeScene, sceneUV, vnoise, clamp, smooth } = require_sceneKit();
       module.exports = defineFieldEffect({
         fine: true,
         speed: 0.5,
+        // On the cube one beach wraps round the sides (one sun), the sky carries
+        // on over the top and the sand under the bottom (sceneKit's cubeScene).
         pixel(p, { t, core }) {
-          const [x, y, w] = sceneUV(p, core), HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
-          const wash = 0.7 + 0.07 * Math.sin(t * 0.55) + 0.025 * Math.sin(x * 4 + t * 0.9) + 0.015 * (vnoise(x * 6, t * 0.3) - 0.5);
-          if (y < HOR) {
-            const k = y / HOR;
-            let r2 = 0.35 + 0.6 * k, g2 = 0.12 + 0.45 * k, b2 = 0.35 - 0.15 * k;
-            const ds = Math.hypot(x - sunX, (y - sunY) * 1.1), sun = smooth(0.075, 0.06, ds), glow = Math.exp(-ds * 7) * 0.5;
-            r2 += sun + glow;
-            g2 += sun * 0.85 + glow * 0.55;
-            b2 += sun * 0.5 + glow * 0.15;
-            const cloud = smooth(0.55, 0.75, vnoise(x * 2.5 + t * 0.03, y * 8)) * (1 - k) * 0.25;
-            r2 += cloud * 0.6;
-            g2 += cloud * 0.35;
-            b2 += cloud * 0.4;
-            return [Math.min(1, r2 * 0.75), Math.min(1, g2 * 0.75), Math.min(1, b2 * 0.75)];
-          }
-          if (y < wash) {
-            const d = (y - HOR) / (wash - HOR), persp = 1 / (0.15 + d);
-            let r2 = 0.02 + 0.08 * d, g2 = 0.12 + 0.2 * d, b2 = 0.25 + 0.2 * d;
-            const swell = Math.pow(0.5 + 0.5 * Math.sin(persp * 2.2 - t * 1.6 + Math.sin(x * 3 + t * 0.4) * 0.6), 6) * (0.15 + 0.35 * d);
-            r2 += swell;
-            g2 += swell;
-            b2 += swell;
-            const gl = Math.exp(-Math.abs(x - sunX) * (6 + 10 * (1 - d))) * Math.pow(vnoise(x * 40, y * 80 + t * 3), 4) * 1.4;
-            r2 += gl;
-            g2 += gl * 0.75;
-            b2 += gl * 0.4;
-            const foam = smooth(0.012, 0, wash - y) * (0.6 + 0.4 * vnoise(x * 30, t * 2));
-            r2 += foam;
-            g2 += foam;
-            b2 += foam;
-            return [Math.min(1, r2), Math.min(1, g2), Math.min(1, b2)];
-          }
-          const wet = Math.exp(-(y - wash) * 28), grain = 0.9 + 0.2 * vnoise(x * 70, y * 70);
-          let r = (0.62 - 0.35 * wet) * grain, g = (0.47 - 0.25 * wet) * grain, b = (0.3 - 0.12 * wet) * grain;
-          const shine = wet * Math.exp(-Math.abs(x - sunX) * 5) * 0.4;
-          r += shine;
-          g += shine * 0.75;
-          b += shine * 0.45;
-          return [r * 0.8, g * 0.8, b * 0.8];
+          return cubeScene(p, core, (x, y, w) => beach(x, y, w, t));
         }
       });
+      function beach(x, y, w, t) {
+        const HOR = 0.4, sunX = w * 0.62, sunY = 0.3;
+        const wash = 0.7 + 0.07 * Math.sin(t * 0.55) + 0.025 * Math.sin(x * 4 + t * 0.9) + 0.015 * (vnoise(x * 6, t * 0.3) - 0.5);
+        if (y < HOR) {
+          const k = y / HOR;
+          let r2 = 0.35 + 0.6 * k, g2 = 0.12 + 0.45 * k, b2 = 0.35 - 0.15 * k;
+          const ds = Math.hypot(x - sunX, (y - sunY) * 1.1), sun = smooth(0.075, 0.06, ds), glow = Math.exp(-ds * 7) * 0.5;
+          r2 += sun + glow;
+          g2 += sun * 0.85 + glow * 0.55;
+          b2 += sun * 0.5 + glow * 0.15;
+          const cloud = smooth(0.55, 0.75, vnoise(x * 2.5 + t * 0.03, y * 8)) * (1 - k) * 0.25;
+          r2 += cloud * 0.6;
+          g2 += cloud * 0.35;
+          b2 += cloud * 0.4;
+          return [Math.min(1, r2 * 0.75), Math.min(1, g2 * 0.75), Math.min(1, b2 * 0.75)];
+        }
+        if (y < wash) {
+          const d = (y - HOR) / (wash - HOR), persp = 1 / (0.15 + d);
+          let r2 = 0.02 + 0.08 * d, g2 = 0.12 + 0.2 * d, b2 = 0.25 + 0.2 * d;
+          const swell = Math.pow(0.5 + 0.5 * Math.sin(persp * 2.2 - t * 1.6 + Math.sin(x * 3 + t * 0.4) * 0.6), 6) * (0.15 + 0.35 * d);
+          r2 += swell;
+          g2 += swell;
+          b2 += swell;
+          const gl = Math.exp(-Math.abs(x - sunX) * (6 + 10 * (1 - d))) * Math.pow(vnoise(x * 40, y * 80 + t * 3), 4) * 1.4;
+          r2 += gl;
+          g2 += gl * 0.75;
+          b2 += gl * 0.4;
+          const foam = smooth(0.012, 0, wash - y) * (0.6 + 0.4 * vnoise(x * 30, t * 2));
+          r2 += foam;
+          g2 += foam;
+          b2 += foam;
+          return [Math.min(1, r2), Math.min(1, g2), Math.min(1, b2)];
+        }
+        const wet = Math.exp(-(y - wash) * 28), grain = 0.9 + 0.2 * vnoise(x * 70, y * 70);
+        let r = (0.62 - 0.35 * wet) * grain, g = (0.47 - 0.25 * wet) * grain, b = (0.3 - 0.12 * wet) * grain;
+        const shine = wet * Math.exp(-Math.abs(x - sunX) * 5) * 0.4;
+        r += shine;
+        g += shine * 0.75;
+        b += shine * 0.45;
+        return [r * 0.8, g * 0.8, b * 0.8];
+      }
     }
   });
 
@@ -31603,7 +31365,6 @@ var PiEngine = (() => {
       var gradientWash = require_gradientWash();
       var weather = require_weather2();
       var radar = require_radar();
-      var rocket3d = require_rocket3d();
       var talkingFace = require_talkingFace();
       var easterEgg = require_easterEgg();
       var rain = require_neonRain();
@@ -31741,7 +31502,6 @@ var PiEngine = (() => {
         weather: weatherWall,
         radar: radar.wall,
         talking_face: talkingFace.wall,
-        rocket3d: rocket3d.wall,
         datetime: datetimeWall,
         moon: celestialWall,
         ghost: ghostWall,
@@ -31778,7 +31538,6 @@ var PiEngine = (() => {
         weather,
         radar,
         talking_face: talkingFace,
-        rocket3d,
         easter_egg: easterEgg,
         rain,
         plasma,
@@ -31849,7 +31608,6 @@ var PiEngine = (() => {
         weather: "Weather",
         radar: "Weather Radar",
         talking_face: "Talking Face",
-        rocket3d: "3D Rocket",
         easter_egg: "Easter Egg",
         rain: "Colour Rain",
         plasma: "Plasma Storm",
