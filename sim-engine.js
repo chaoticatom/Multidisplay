@@ -456,12 +456,22 @@ var PiEngine = (() => {
           const [x, y, , side, bottom] = ringUV(p);
           if (side) {
             if (x < 3.8) return scene(x, y, 4, t, lvl, 1);
-            const a = scene(x, y, 4, t, lvl, 1), b = scene(x - 4, y, 4, t, lvl, 1), k = (x - 3.8) / 0.2;
-            return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+            const a = scene(x, y, 4, t, lvl, 1), b2 = scene(x - 4, y, 4, t, lvl, 1), k = (x - 3.8) / 0.2;
+            return [a[0] + (b2[0] - a[0]) * k, a[1] + (b2[1] - a[1]) * k, a[2] + (b2[2] - a[2]) * k];
           }
           const dx = x - 0.5, dz = y - 0.5, d = 0.5 - Math.max(Math.abs(dx), Math.abs(dz));
           const [s] = ringUV({ x: p.x, y: 0.5, z: p.z });
-          return bottom ? scene(s, 0.97 + 0.03 * (1 - 2 * d), 4, t, lvl, 1) : scene(s, -d * 0.9, 4, t, lvl, 1);
+          const at = (yy) => {
+            if (s < 3.8) return scene(s, yy, 4, t, lvl, 1);
+            const a = scene(s, yy, 4, t, lvl, 1), b2 = scene(s - 4, yy, 4, t, lvl, 1), k = (s - 3.8) / 0.2;
+            return [a[0] + (b2[0] - a[0]) * k, a[1] + (b2[1] - a[1]) * k, a[2] + (b2[2] - a[2]) * k];
+          };
+          if (bottom) return at(0.97 + 0.03 * (1 - 2 * d));
+          const edge = at(-d * 0.9), m = smooth(0.06, 0.32, d);
+          if (m <= 0) return edge;
+          const ang = ((0.375 - Math.atan2(dz, dx) / 6.2832) % 1 + 1) % 1, hue = (ang + t * 0.03 + 0.06 * Math.sin(d * 9 - t * 0.8)) % 1;
+          const [r, g, b] = hsl(hue, 0.85, 0.42), glow = 0.55 + 0.25 * vnoise(dx * 9 + t * 0.4, dz * 9 - t * 0.3) + 0.25 * (1 - 2 * d);
+          return [edge[0] + (r * glow - edge[0]) * m, edge[1] + (g * glow - edge[1]) * m, edge[2] + (b * glow - edge[2]) * m];
         }
       });
       function scene(x, y, w, t, lvl, span) {
