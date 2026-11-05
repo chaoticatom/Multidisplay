@@ -443,29 +443,44 @@ var PiEngine = (() => {
       init_bufferGlobal();
       var { hsl } = require_core();
       var { defineFieldEffect } = require_surface();
-      var { sceneUV, vnoise, hash2, clamp, smooth } = require_sceneKit();
+      var { ringUV, sceneUV, vnoise, hash2, clamp, smooth } = require_sceneKit();
       module.exports = defineFieldEffect({
         fine: true,
         speed: 0.7,
         pixel(p, { t, core }) {
-          const [x, y, w] = sceneUV(p, core), lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
-          const LEDGE = 0, POOL = 0.78;
-          const hue = (x / w * 0.85 + t * 0.03) % 1, [hr, hg, hb] = hsl(hue, 0.9, 0.5);
-          if (y < POOL) {
-            const col = Math.floor(x * 40), sp = 0.7 + hash2(col, 7) * 0.6;
-            const wob = 0.015 * Math.sin(y * 20 + t * 3 + col);
-            const streak = 0.35 + 0.65 * Math.pow(vnoise((x + wob) * 40, y * 6 - t * 4.5 * sp), 1.6);
-            const fall = (y - LEDGE) / (POOL - LEDGE), k2 = streak * (0.55 + 0.35 * (1 - fall)) * (0.9 + 0.4 * lvl);
-            const mist2 = smooth(0.7, 1, fall) * 0.35;
-            return [hr * k2 + mist2, hg * k2 + mist2, hb * k2 + mist2];
+          const lvl = core && core.audio && core.audio.active ? core.audio.level : 0;
+          if (p.flat) {
+            const [x2, y2, w] = sceneUV(p, core);
+            return scene(x2, y2, w, t, lvl, 0.85);
           }
-          const d = (y - POOL) / (1 - POOL), mist = Math.exp(-d * 4) * (0.5 + 0.3 * vnoise(x * 10 + t * 0.5, y * 10 - t));
-          const spray = hash2(Math.floor(x * 60), Math.floor(y * 60 + t * 20)) > 0.985 ? 0.6 * (1 - d) : 0;
-          const ripple = Math.pow(0.5 + 0.5 * Math.sin(d * 40 - t * 3 + Math.sin(x * 9) * 2), 8) * 0.25 * (1 - d * 0.5);
-          const k = 0.25 * (1 - d) + ripple;
-          return [Math.min(1, hr * k + mist + spray), Math.min(1, hg * k + mist + spray), Math.min(1, hb * k + mist * 1.1 + spray)];
+          const [x, y, , side, bottom] = ringUV(p);
+          if (side) {
+            if (x < 3.8) return scene(x, y, 4, t, lvl, 1);
+            const a = scene(x, y, 4, t, lvl, 1), b = scene(x - 4, y, 4, t, lvl, 1), k = (x - 3.8) / 0.2;
+            return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+          }
+          const dx = x - 0.5, dz = y - 0.5, d = 0.5 - Math.max(Math.abs(dx), Math.abs(dz));
+          const [s] = ringUV({ x: p.x, y: 0.5, z: p.z });
+          return bottom ? scene(s, 0.97 + 0.03 * (1 - 2 * d), 4, t, lvl, 1) : scene(s, -d * 0.9, 4, t, lvl, 1);
         }
       });
+      function scene(x, y, w, t, lvl, span) {
+        const LEDGE = 0, POOL = 0.78;
+        const hue = ((x / w * span + t * 0.03) % 1 + 1) % 1, [hr, hg, hb] = hsl(hue, 0.9, 0.5);
+        if (y < POOL) {
+          const col = Math.floor(x * 40), sp = 0.7 + hash2(col, 7) * 0.6;
+          const wob = 0.015 * Math.sin(y * 20 + t * 3 + col);
+          const streak = 0.35 + 0.65 * Math.pow(vnoise((x + wob) * 40, y * 6 - t * 4.5 * sp), 1.6);
+          const fall = (y - LEDGE) / (POOL - LEDGE), k2 = streak * (0.55 + 0.35 * (1 - fall)) * (0.9 + 0.4 * lvl);
+          const mist2 = smooth(0.7, 1, fall) * 0.35;
+          return [hr * k2 + mist2, hg * k2 + mist2, hb * k2 + mist2];
+        }
+        const d = (y - POOL) / (1 - POOL), mist = Math.exp(-d * 4) * (0.5 + 0.3 * vnoise(x * 10 + t * 0.5, y * 10 - t));
+        const spray = hash2(Math.floor(x * 60), Math.floor(y * 60 + t * 20)) > 0.985 ? 0.6 * (1 - d) : 0;
+        const ripple = Math.pow(0.5 + 0.5 * Math.sin(d * 40 - t * 3 + Math.sin(x * 9) * 2), 8) * 0.25 * (1 - d * 0.5);
+        const k = 0.25 * (1 - d) + ripple;
+        return [Math.min(1, hr * k + mist + spray), Math.min(1, hg * k + mist + spray), Math.min(1, hb * k + mist * 1.1 + spray)];
+      }
     }
   });
 
