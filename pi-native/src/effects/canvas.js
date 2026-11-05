@@ -28,6 +28,27 @@ function topFoldMap(core, S, panorama) {
   }
   return (core._foldMap = { key, top });
 }
+// A plot for a canvas effect's own top face: canvas point (x, y) with y
+// above the sides (y < 0) lands on the top, -y in from the edge above column
+// x, so things that go up over a side carry on across the top. For caps().
+function topPlot(core, S, panorama, add = true) {
+  const { top } = topFoldMap(core, S, panorama), W = panorama ? S * 4 : S;
+  if (!core._topPlotGrid || core._topPlotGrid.key !== core._foldMap.key) {
+    const grid = new Int32Array(W * S).fill(-1);
+    for (const [i, cx, d] of top) grid[Math.min(S - 1, Math.round(d * S)) * W + cx] = i;
+    core._topPlotGrid = { key: core._foldMap.key, grid };
+  }
+  const grid = core._topPlotGrid.grid, cb = core.colBuf;
+  return (x, y, r, g, b) => {
+    const dI = Math.round(-y); if (dI < 0 || dI >= S / 2) return;
+    const cx = ((Math.round(x) % W) + W) % W, i = grid[dI * W + cx]; if (i < 0) return;
+    const o = i * 3;
+    if (add) { cb[o] = Math.min(1, cb[o] + r); cb[o + 1] = Math.min(1, cb[o + 1] + g); cb[o + 2] = Math.min(1, cb[o + 2] + b); } else { cb[o] = r; cb[o + 1] = g; cb[o + 2] = b; }
+  };
+}
+// Fill a face (the top by default) with one colour: a caps() background.
+function fillTop(core, r, g, b, face = 4) { for (const i of core.faceMap[face]) if (i >= 0) { const o = i * 3; core.colBuf[o] = r; core.colBuf[o + 1] = g; core.colBuf[o + 2] = b; } }
+
 function foldTop(core, c, S, panorama) {
   const { top } = topFoldMap(core, S, panorama), cb = core.colBuf;
   // The blended middle: the average along the top rows of the sides.
@@ -114,4 +135,4 @@ function defineCanvasEffect({ panorama = false, speed = 1, render, caps }) {
   return cube;
 }
 
-module.exports = { defineCanvasEffect };
+module.exports = { defineCanvasEffect, topPlot, fillTop };

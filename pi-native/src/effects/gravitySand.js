@@ -8,7 +8,7 @@
 // cube it's one box wrapped round the four sides - sand slides from one face
 // onto the next; fills a flat panel.
 'use strict';
-const { defineCanvasEffect } = require('./canvas');
+const { defineCanvasEffect, topPlot, fillTop } = require('./canvas');
 const { hsl } = require('../core');
 
 const st = { W: 0, H: 0, g: null, col: null, phase: 'pour', hue: Math.random(), spouts: [{ x: 0.2, d: 1, s: 0.11 }, { x: 0.5, d: -1, s: 0.16 }, { x: 0.8, d: 1, s: 0.08 }], acc: 0, drainT: 0 };
@@ -18,8 +18,28 @@ function reset(W, H) {
   st.phase = 'pour'; st.hue = Math.random(); st.drainT = 0;
 }
 
+// The cube's top: a hopper glowing in the middle pours sand outwards along
+// a stream to each spout, which feeds the sides (moving out, the way the
+// sand goes - a mirror of the sides ran it inwards).
+function sandTop(core, face, t) {
+  if (face !== 4) { fillTop(core, 0, 0, 0, face); return; }
+  const S = core.SIZE, half = S / 2, W = st.W || S * 4;
+  fillTop(core, 0.012, 0.012, 0.016);
+  const plot = topPlot(core, S, true);
+  for (let x = 0; x < W; x++) for (let d = half - 4; d < half; d++) { const k = 0.06 + 0.05 * (d - half + 4); plot(x, -d, k * 1.1, k * 0.9, k * 0.6); } // the hopper
+  if (st.phase !== 'pour') return;
+  st.spouts.forEach((sp, si) => {
+    const x = sp.x * (W - 1), [r, g, b] = hsl((Math.floor(t / 4) * 0.13 + st.hue + si * 0.33) % 1, 0.75, 0.5);
+    for (let d = 0; d < half - 3; d++) {
+      const flow = ((((d / (half - 3)) - t * 1.4) % 1) + 1) % 1, k = 0.35 + 0.65 * (flow < 0.5 ? 1 : 0.5); // grains running outwards
+      plot(x, -(half - 4 - d), r * k, g * k, b * k);
+    }
+  });
+}
+
 module.exports = defineCanvasEffect({
   panorama: true,
+  caps: sandTop,
   render(c, { t, dt }) {
     const W = c.W, H = c.H;
     if (st.W !== W || st.H !== H || !st.g) {

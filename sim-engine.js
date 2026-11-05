@@ -543,6 +543,39 @@ var PiEngine = (() => {
         }
         return core._foldMap = { key, top };
       }
+      function topPlot(core, S, panorama, add = true) {
+        const { top } = topFoldMap(core, S, panorama), W = panorama ? S * 4 : S;
+        if (!core._topPlotGrid || core._topPlotGrid.key !== core._foldMap.key) {
+          const grid2 = new Int32Array(W * S).fill(-1);
+          for (const [i, cx, d] of top) grid2[Math.min(S - 1, Math.round(d * S)) * W + cx] = i;
+          core._topPlotGrid = { key: core._foldMap.key, grid: grid2 };
+        }
+        const grid = core._topPlotGrid.grid, cb = core.colBuf;
+        return (x, y, r, g, b) => {
+          const dI = Math.round(-y);
+          if (dI < 0 || dI >= S / 2) return;
+          const cx = (Math.round(x) % W + W) % W, i = grid[dI * W + cx];
+          if (i < 0) return;
+          const o = i * 3;
+          if (add) {
+            cb[o] = Math.min(1, cb[o] + r);
+            cb[o + 1] = Math.min(1, cb[o + 1] + g);
+            cb[o + 2] = Math.min(1, cb[o + 2] + b);
+          } else {
+            cb[o] = r;
+            cb[o + 1] = g;
+            cb[o + 2] = b;
+          }
+        };
+      }
+      function fillTop(core, r, g, b, face = 4) {
+        for (const i of core.faceMap[face]) if (i >= 0) {
+          const o = i * 3;
+          core.colBuf[o] = r;
+          core.colBuf[o + 1] = g;
+          core.colBuf[o + 2] = b;
+        }
+      }
       function foldTop(core, c, S, panorama) {
         const { top } = topFoldMap(core, S, panorama), cb = core.colBuf;
         let ar = 0, ag = 0, ab = 0, n = 0;
@@ -664,7 +697,7 @@ var PiEngine = (() => {
         };
         return cube;
       }
-      module.exports = { defineCanvasEffect };
+      module.exports = { defineCanvasEffect, topPlot, fillTop };
     }
   });
 
@@ -10264,7 +10297,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { defineCanvasEffect } = require_canvas();
+      var { defineCanvasEffect, topPlot, fillTop } = require_canvas();
       var { hsl } = require_core();
       var { FONT_3x5 } = require_text();
       var st = { W: 0, H: 0, drops: [], splashes: [], cols: [] };
@@ -10340,8 +10373,29 @@ var PiEngine = (() => {
           }
         });
       }
+      function rainTop(core, face, t) {
+        if (face !== 4) {
+          fillTop(core, 0, 0, 0, face);
+          return;
+        }
+        const S = core.SIZE, matrix = (core.effectOptions?.rain?.style || "colour") === "matrix";
+        fillTop(core, matrix ? 0 : 5e-3, matrix ? 0.012 : 6e-3, matrix ? 4e-3 : 0.014);
+        if (matrix) return;
+        const plot = topPlot(core, S, true), H = st.H || S;
+        for (const d of st.drops) {
+          if (d.y >= 0) continue;
+          const col = hsl((d.hue + t * 0.02) % 1, 1, 0.6), len = 2 + d.z * 7, bright = 0.25 + d.z * 0.85;
+          for (let k = 0; k < len; k++) {
+            const a = bright * (1 - k / len);
+            plot(d.x, (d.y - k) * (S / H), col[0] * a, col[1] * a, col[2] * a);
+          }
+        }
+      }
       module.exports = defineCanvasEffect({
+        panorama: true,
+        caps: rainTop,
         render(c, { t, dt, core }) {
+          st.H = c.H;
           if ((core.effectOptions?.rain?.style || "colour") === "matrix") matrixRain(c, dt);
           else colourRain(c, dt, t);
         }
@@ -20444,7 +20498,7 @@ var PiEngine = (() => {
       "use strict";
       init_define_process_env();
       init_bufferGlobal();
-      var { defineCanvasEffect } = require_canvas();
+      var { defineCanvasEffect, topPlot, fillTop } = require_canvas();
       var { hsl } = require_core();
       var st = { W: 0, H: 0, g: null, col: null, phase: "pour", hue: Math.random(), spouts: [{ x: 0.2, d: 1, s: 0.11 }, { x: 0.5, d: -1, s: 0.16 }, { x: 0.8, d: 1, s: 0.08 }], acc: 0, drainT: 0 };
       function reset(W, H) {
@@ -20456,8 +20510,30 @@ var PiEngine = (() => {
         st.hue = Math.random();
         st.drainT = 0;
       }
+      function sandTop(core, face, t) {
+        if (face !== 4) {
+          fillTop(core, 0, 0, 0, face);
+          return;
+        }
+        const S = core.SIZE, half = S / 2, W = st.W || S * 4;
+        fillTop(core, 0.012, 0.012, 0.016);
+        const plot = topPlot(core, S, true);
+        for (let x = 0; x < W; x++) for (let d = half - 4; d < half; d++) {
+          const k = 0.06 + 0.05 * (d - half + 4);
+          plot(x, -d, k * 1.1, k * 0.9, k * 0.6);
+        }
+        if (st.phase !== "pour") return;
+        st.spouts.forEach((sp, si) => {
+          const x = sp.x * (W - 1), [r, g, b] = hsl((Math.floor(t / 4) * 0.13 + st.hue + si * 0.33) % 1, 0.75, 0.5);
+          for (let d = 0; d < half - 3; d++) {
+            const flow = ((d / (half - 3) - t * 1.4) % 1 + 1) % 1, k = 0.35 + 0.65 * (flow < 0.5 ? 1 : 0.5);
+            plot(x, -(half - 4 - d), r * k, g * k, b * k);
+          }
+        });
+      }
       module.exports = defineCanvasEffect({
         panorama: true,
+        caps: sandTop,
         render(c, { t, dt }) {
           const W = c.W, H = c.H;
           if (st.W !== W || st.H !== H || !st.g) {

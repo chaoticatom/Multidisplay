@@ -5,9 +5,11 @@
 //   'matrix' - digital code rain: columns of glyphs falling at their own
 //              speeds, white-hot heads, green trails that flicker as the
 //              characters change.
-// Same on every cube side face; fills a flat panel.
+// On the cube the rain wraps round the four sides, and the top shows the
+// drops still on their way, moving out to the edges and over onto the sides;
+// fills a flat panel.
 'use strict';
-const { defineCanvasEffect } = require('./canvas');
+const { defineCanvasEffect, topPlot, fillTop } = require('./canvas');
 const { hsl } = require('../core');
 const { FONT_3x5 } = require('./text');
 
@@ -80,8 +82,25 @@ function matrixRain(c, dt) {
   });
 }
 
+// The cube's top: the drops above the sides (y < 0) on their way in.
+function rainTop(core, face, t) {
+  if (face !== 4) { fillTop(core, 0, 0, 0, face); return; }
+  const S = core.SIZE, matrix = (core.effectOptions?.rain?.style || 'colour') === 'matrix';
+  fillTop(core, matrix ? 0 : 0.005, matrix ? 0.012 : 0.006, matrix ? 0.004 : 0.014);
+  if (matrix) return;
+  const plot = topPlot(core, S, true), H = st.H || S;
+  for (const d of st.drops) {
+    if (d.y >= 0) continue;
+    const col = hsl((d.hue + t * 0.02) % 1, 1, 0.6), len = 2 + d.z * 7, bright = 0.25 + d.z * 0.85;
+    for (let k = 0; k < len; k++) { const a = bright * (1 - k / len); plot(d.x, (d.y - k) * (S / H), col[0] * a, col[1] * a, col[2] * a); }
+  }
+}
+
 module.exports = defineCanvasEffect({
+  panorama: true,
+  caps: rainTop,
   render(c, { t, dt, core }) {
+    st.H = c.H;
     if ((core.effectOptions?.rain?.style || 'colour') === 'matrix') matrixRain(c, dt);
     else colourRain(c, dt, t);
   },
