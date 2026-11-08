@@ -452,6 +452,7 @@ class WsServer {
     const p = this.state.prefs;
     if (!p || this.state.activeAlarm) return;
     const now = require('./localTime').wallClock(p.tz); // the user's local time
+    if (typeof this._ambientTick === 'function') this._ambientTick(p, now); // (tests drive _playlistTick on a stand-in)
     const st = this.state.autoStatus || (this.state.autoStatus = {});
     // The Pi's view of the time, shown under Timers so a wrong clock or zone is easy to spot.
     const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
@@ -542,6 +543,22 @@ class WsServer {
     const favs = list.filter((k) => EFFECTS[k]);
     if (favs.length < 2 || Date.now() - this._playlistSince < p.playlist.minutes * 60000) return;
     if (show(favs[(favs.indexOf(this.state.effect) + 1) % favs.length], p.dayPlan && p.dayPlan.on ? 'Day plan' : 'Cycle ★ favourites')) this._broadcast(this._stateMsg());
+  }
+
+  // Ambient mode (prefs.ambient): brightness follows the day - rising after
+  // waking, full through the day, easing down in the evening - and the panels
+  // switch off overnight (back on at the wake hour). Only undoes its own
+  // switch-off, so turning the panels off by hand isn't overridden.
+  _ambientTick(p, now) {
+    const a = p.ambient; if (!a || !a.on) return;
+    const h = now.getHours() + now.getMinutes() / 60, sleep = a.sleep ?? 23, wake = a.wake ?? 7;
+    const asleep = sleep > wake ? (h >= sleep || h < wake) : (h >= sleep && h < wake);
+    if (asleep) { if (!this.state.panelsOff) { this.state.panelsOff = true; this._ambientOff = true; this._changeReason = 'Ambient mode'; this._broadcast(this._stateMsg()); } return; }
+    if (this._ambientOff) { this.state.panelsOff = false; this._ambientOff = false; this._broadcast(this._stateMsg()); }
+    const sinceWake = ((h - wake) + 24) % 24, untilSleep = ((sleep - h) + 24) % 24;
+    const level = Math.min(1, 0.35 + sinceWake * 0.3) * Math.min(1, 0.4 + untilSleep * 0.15); // up over ~2 h, down over the last ~4 h
+    const b = Math.round(Math.max(0.2, Math.min(1.15, level * 1.15)) * 20) / 20;
+    if (Math.abs((this.state.brightness ?? 1) - b) >= 0.05) { this.state.brightness = b; this._broadcast(this._stateMsg()); }
   }
 
   _stateMsg() {

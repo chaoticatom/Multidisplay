@@ -1568,6 +1568,15 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #sidebar .dgroup > .cx-row:only-of-type { border-radius: 14px; }
 #sidebar .slider-row { padding: 6px 0; }
 #sidebar .ui-label-accent { margin-top: 16px !important; margin-bottom: 8px; }
+
+/* ── Face picker (double-tap a face of the preview) ── */
+#face-pick { position: fixed; z-index: 200; width: 260px; max-height: 320px; display: flex; flex-direction: column; border-radius: 18px; background: #0F141D; border: 1px solid #2A3242; box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; font-family: Inter, sans-serif; }
+.fp-head { display: flex; align-items: center; padding: 10px 12px; font: 600 14px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; border-bottom: 1px solid #1F2633; }
+.fp-head button { margin-left: auto; width: 30px; height: 30px; border-radius: 8px; border: 0; background: #1A2130; color: #B9C2D3; cursor: pointer; }
+.fp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; overflow-y: auto; }
+.fp-grid button { border: 1px solid #1F2633; border-radius: 10px; background: #11161F; padding: 0; overflow: hidden; cursor: pointer; color: #E8ECF4; text-align: left; }
+.fp-grid canvas { width: 100%; height: 44px; display: block; image-rendering: pixelated; }
+.fp-grid span { display: block; padding: 3px 5px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
@@ -1795,6 +1804,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <div class="sub-body">
     <button class="effect-btn" data-effect="rubiks">◈ Rubik's Cube</button>
     <button class="effect-btn" data-effect="aquarium">◈ Aquarium</button>
+    <button class="effect-btn" data-effect="globe">◈ Globe</button>
+    <button class="effect-btn" data-effect="eqtower">◈ Equaliser Tower</button>
+    <button class="effect-btn" data-effect="lighthouse">◈ Lighthouse</button>
+    <button class="effect-btn" data-effect="rainglass">◈ Rain on Glass</button>
     <button class="effect-btn has-panel" data-effect="balls">◈ Bouncing Balls <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-balls">
       <div class="ov-row-label">Mode</div>
@@ -2729,6 +2742,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section collapsed" id="auto-section">
     <button class="section-head">◈ Auto show <span class="chev">▾</span></button>
     <div class="section-body">
+      <div class="cx-row" id="ambient-row"><span>🌗 Ambient: brightness follows the day, off overnight</span><button class="cx-switch" id="ambient-sw" aria-label="Ambient mode on/off"></button></div>
       <div id="day-strip"><div class="day-bar"></div><div class="day-ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>
       <div id="auto-show-ui"></div>
     </div>
@@ -2960,6 +2974,8 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="tm-chips" id="tr-secs" style="margin-top:6px;"><button type="button" data-secs="1">Quick</button><button type="button" data-secs="2.5" class="on">Medium</button><button type="button" data-secs="4">Slow</button></div>
       <div class="ui-label-accent" style="margin-top:10px;">⚡ Detail</div>
       <div class="tm-chips" id="quality-chips"><button type="button" data-q="auto" class="on" title="Full detail, easing off on effects the Pi can't draw in time">Auto</button><button type="button" data-q="smooth" title="Colour effects always at a quarter of the work: smoothest motion">Smooth</button><button type="button" data-q="detailed" title="Every pixel, every frame, even if it slows down">Detailed</button></div>
+      <div class="cube-only"><div class="ui-label-accent" style="margin-top:10px;">👁 Cube view</div>
+      <div class="tm-chips" id="view-chips"><button type="button" data-v="all" class="on" title="Every face">All sides</button><button type="button" data-v="fr" title="Front, Right and the top">Front + Right</button><button type="button" data-v="rb" title="Right, Back and the top">Right + Back</button><button type="button" data-v="bl" title="Back, Left and the top">Back + Left</button><button type="button" data-v="lf" title="Left, Front and the top">Left + Front</button></div></div>
       <div class="cube-only"><div class="ui-label-accent" style="margin-top:10px;">⬇ Cube bottom face</div>
       <div class="tm-chips" id="bottom-chips"><button type="button" data-b="effect" class="on" title="Whatever the effect draws there">As the effect</button><button type="button" data-b="off" title="Dark: it sits on a table (cooler, less power)">Off</button><button type="button" data-b="top" title="A copy of the top, for a hanging cube">Copy the top</button></div></div>
       </div><div class="dgroup" data-dgroup="look" hidden>

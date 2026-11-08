@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireSetupV2();
   wireEffectsV2();
   wireMusicV2();
+  wireFacePick();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
@@ -94,7 +95,7 @@ const _cxFaceCanvases = [];
 let _cxHero = null, _cxHeroCtx = null, _cxSample = null;
 const _cxC1 = [91, 124, 255], _cxC2 = [180, 91, 255];
 
-function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; studioNoteFrame(face, bytes); }
+function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; studioNoteFrame(face, bytes); liveTileFrame(face, bytes); }
 
 function cxEffectOrder() {
   return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')]
@@ -520,6 +521,8 @@ function cxSyncFavs() {
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.classList.toggle('on', b.dataset.q === (currentState.prefs?.quality || 'auto')));
   document.querySelectorAll('#bottom-chips button').forEach((b) => b.classList.toggle('on', b.dataset.b === (currentState.prefs?.bottom || 'effect')));
+  document.querySelectorAll('#view-chips button').forEach((b) => b.classList.toggle('on', b.dataset.v === (currentState.prefs?.view || 'all')));
+  document.getElementById('ambient-sw')?.classList.toggle('on', !!currentState.prefs?.ambient?.on);
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -549,6 +552,8 @@ function cxWirePrefs() {
   document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setQuality', quality: b.dataset.q })));
   document.querySelectorAll('#bottom-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setBottomFace', bottom: b.dataset.b })));
+  document.querySelectorAll('#view-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setCubeView', view: b.dataset.v })));
+  document.getElementById('ambient-sw')?.addEventListener('click', () => send({ cmd: 'setAmbient', on: !currentState.prefs?.ambient?.on }));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);

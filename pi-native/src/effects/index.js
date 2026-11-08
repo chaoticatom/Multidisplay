@@ -59,9 +59,10 @@ const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
 const rubiks = require('./rubiks'); // Rubik's Cube
+const cubeScenes2 = require('./cubeScenes2'); // Globe, Equaliser Tower, Lighthouse, Rain on Glass
 const aquarium = require('./aquarium'); // Aquarium
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
-const { withTop, clockTop, moonTop, recordTop } = require('./cubeTops'); // cube top pictures for text/info effects
+const { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require('./cubeTops'); // cube top pictures for text/info effects
 const ghost = require('./ghostFace'); // Ghost Face
 const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
 const moon = require('./celestial/celestial');
@@ -137,6 +138,10 @@ const WALL_EFFECTS = {
   fluid_ink: fluidInk.wall,
   lava_lamp: lavaLamp.wall,
   rubiks: rubiks.wall,
+  globe: cubeScenes2.globe.wall,
+  eqtower: cubeScenes2.eqtower.wall,
+  lighthouse: cubeScenes2.lighthouse.wall,
+  rainglass: cubeScenes2.rainglass.wall,
   aquarium: aquarium.wall,
   ai_art: aiArt.wall,
   gradient_wash: gradientWashWall,
@@ -192,7 +197,7 @@ const WALL_EFFECTS = {
 const EFFECTS = {
   my_photos: myPhotos,
   ambient_weather: ambientWeather,
-  pixel_pet: pixelPet,
+  pixel_pet: withTop(pixelPet, haloTop),
   snake: snake,
   now_playing: withTop(nowPlaying, recordTop),
   message: messageBoard,
@@ -203,13 +208,17 @@ const EFFECTS = {
   fluid_ink: fluidInk,
   lava_lamp: lavaLamp,
   rubiks,
+  globe: cubeScenes2.globe,
+  eqtower: cubeScenes2.eqtower,
+  lighthouse: cubeScenes2.lighthouse,
+  rainglass: cubeScenes2.rainglass,
   aquarium,
   ai_art: aiArt,
   wave,
   gradient_wash: gradientWash,
   weather,
   radar,
-  talking_face: talkingFace,
+  talking_face: withTop(talkingFace, haloTop),
   easter_egg: easterEgg,
   rain,
   plasma,
@@ -223,8 +232,8 @@ const EFFECTS = {
   cam,
   maze,
   tron,
-  coinflip,
-  dice,
+  coinflip: withTop(coinflip, coinTop),
+  dice: withTop(dice, diceTop),
   random,
   random80s,
   fireworks,
@@ -239,8 +248,8 @@ const EFFECTS = {
   depth_rings: depthRings,
   prism,
   tide,
-  ghost,
-  ghost2: ghost3d,
+  ghost: withTop(ghost, haloTop),
+  ghost2: withTop(ghost3d, haloTop),
   datetime: withTop(datetime, clockTop),
   moon: withTop(moon, moonTop),
   epic,
@@ -276,6 +285,10 @@ const EFFECT_NAMES = {
   fluid_ink: 'Fluid Ink',
   lava_lamp: 'Lava Lamp',
   rubiks: "Rubik's Cube",
+  globe: 'Globe',
+  eqtower: 'Equaliser Tower',
+  lighthouse: 'Lighthouse',
+  rainglass: 'Rain on Glass',
   aquarium: 'Aquarium',
   ai_art: 'AI Art',
   wave: 'Colour Falls',

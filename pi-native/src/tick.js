@@ -129,6 +129,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     pulseBuffer(core.audio, buf, react);
     applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
     if (cubeMode) bottomFace(core, state.prefs && state.prefs.bottom);
+    if (cubeMode) cornerView(core, state.prefs && state.prefs.view);
     // Planes overhead alert, over any effect (Planes option).
     try { require('./effects/planes').alert(core, config.mode, state, dt); } catch (e) { /* never break the frame */ }
     // Auto-DJ light show: a white flash on each drop, as it's heard.
@@ -155,6 +156,23 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
   }
   renderNotice(core, state, config.mode, dt); // a /api/notify banner sits on top of everything
+}
+
+// Setup > Display > Look > View: 'all' (every face) or a corner - the two
+// sides facing you plus the top ('fr' front+right, 'rb', 'bl', 'lf'). The
+// faces you can't see get a dim glow of the effect's own colour instead of
+// the picture (cooler, less power, nothing half-seen round the back).
+const CORNER = { fr: [0, 2], rb: [2, 1], bl: [1, 3], lf: [3, 0] };
+function cornerView(core, view) {
+  const keep = CORNER[view]; if (!keep) return;
+  const vis = [...keep, 4], cb = core.colBuf;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (const f of vis) for (const i of core.faceMap[f]) if (i >= 0) { r += cb[i * 3]; g += cb[i * 3 + 1]; b += cb[i * 3 + 2]; n++; }
+  const k = n ? 0.12 / n : 0;
+  for (let f = 0; f < 6; f++) {
+    if (vis.includes(f)) continue;
+    for (const i of core.faceMap[f]) if (i >= 0) { cb[i * 3] = r * k; cb[i * 3 + 1] = g * k; cb[i * 3 + 2] = b * k; }
+  }
 }
 
 // Setup > Display > Look > Bottom face: 'effect' (as drawn), 'off' (dark -

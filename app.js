@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.5';
+const APP_VERSION = '0.7.6';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5165,6 +5165,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireSetupV2();
   wireEffectsV2();
   wireMusicV2();
+  wireFacePick();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
@@ -5207,7 +5208,7 @@ const _cxFaceCanvases = [];
 let _cxHero = null, _cxHeroCtx = null, _cxSample = null;
 const _cxC1 = [91, 124, 255], _cxC2 = [180, 91, 255];
 
-function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; studioNoteFrame(face, bytes); }
+function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; studioNoteFrame(face, bytes); liveTileFrame(face, bytes); }
 
 function cxEffectOrder() {
   return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')]
@@ -5633,6 +5634,8 @@ function cxSyncFavs() {
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.classList.toggle('on', b.dataset.q === (currentState.prefs?.quality || 'auto')));
   document.querySelectorAll('#bottom-chips button').forEach((b) => b.classList.toggle('on', b.dataset.b === (currentState.prefs?.bottom || 'effect')));
+  document.querySelectorAll('#view-chips button').forEach((b) => b.classList.toggle('on', b.dataset.v === (currentState.prefs?.view || 'all')));
+  document.getElementById('ambient-sw')?.classList.toggle('on', !!currentState.prefs?.ambient?.on);
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -5662,6 +5665,8 @@ function cxWirePrefs() {
   document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setQuality', quality: b.dataset.q })));
   document.querySelectorAll('#bottom-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setBottomFace', bottom: b.dataset.b })));
+  document.querySelectorAll('#view-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setCubeView', view: b.dataset.v })));
+  document.getElementById('ambient-sw')?.addEventListener('click', () => send({ cmd: 'setAmbient', on: !currentState.prefs?.ambient?.on }));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);
@@ -6879,4 +6884,48 @@ function syncMusicV2() {
     }));
   }
   tickMusicV2();
+}
+
+// ── Double-tap (or double-click) a face of the 3D preview to give that face
+// its own effect: a small picker, then the display switches to Custom Cube
+// with that face set (the others keep theirs).
+const FACE_LABEL = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
+function wireFacePick() {
+  const cv = document.getElementById('c'); if (!cv || typeof THREE === 'undefined') return;
+  const ray = new THREE.Raycaster(), pt = new THREE.Vector2();
+  const pickAt = (x, y) => {
+    if (currentState.panelMode !== 'cube' || !camera) return;
+    const r = cv.getBoundingClientRect(); pt.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(pt, camera);
+    const meshes = Object.entries(faceCanvases).map(([f, e]) => { e.mesh.userData.face = Number(f); return e.mesh; });
+    const hit = ray.intersectObjects(meshes, false)[0];
+    if (hit) openFacePicker(hit.object.userData.face, x, y);
+  };
+  cv.addEventListener('dblclick', (e) => pickAt(e.clientX, e.clientY));
+  let lastTap = 0;
+  cv.addEventListener('touchend', (e) => { const now = Date.now(), t = e.changedTouches[0]; if (now - lastTap < 320 && t) pickAt(t.clientX, t.clientY); lastTap = now; });
+}
+function openFacePicker(face, x, y) {
+  document.getElementById('face-pick')?.remove();
+  const box = document.createElement('div'); box.id = 'face-pick'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', FACE_LABEL[face] + ' face');
+  box.style.left = Math.min(window.innerWidth - 270, Math.max(10, x - 130)) + 'px'; box.style.top = Math.min(window.innerHeight - 330, Math.max(10, y - 20)) + 'px';
+  const head = document.createElement('div'); head.className = 'fp-head'; head.textContent = FACE_LABEL[face] + ' face';
+  const close = document.createElement('button'); close.type = 'button'; close.textContent = '✕'; close.setAttribute('aria-label', 'Close'); close.addEventListener('click', () => box.remove()); head.append(close);
+  const grid = document.createElement('div'); grid.className = 'fp-grid';
+  const keys = Object.keys(effectNames || {}).filter((k) => !['custom_cube', 'draw', 'cam', 'easter_egg'].includes(k));
+  grid.append(...keys.map((k) => { const b = document.createElement('button'); b.type = 'button'; b.title = effectNames[k]; b.setAttribute('aria-label', effectNames[k]); const th = cxStillThumb(k); const n = document.createElement('span'); n.textContent = effectNames[k]; b.append(th, n);
+    b.addEventListener('click', () => { send({ cmd: 'setFaceEffect', face, effect: k }); if (currentState.effect !== 'custom_cube') send({ cmd: 'setEffect', effect: 'custom_cube' }); box.remove(); cxToast(FACE_LABEL[face] + ': ' + effectNames[k]); }); return b; }));
+  box.append(head, grid);
+  document.body.append(box);
+  setTimeout(() => document.addEventListener('pointerdown', function off(e) { if (!box.contains(e.target)) { box.remove(); document.removeEventListener('pointerdown', off); } }), 0);
+}
+
+// The playing effect's tile in the effects grid shows the real cube, live
+// (the front face as it arrives), instead of its canned loop.
+function liveTileFrame(face, bytes) {
+  if (face !== 0 || document.body.dataset.tab !== 'play') return;
+  const tile = document.querySelector('#effects-body .effect-btn.cx-tile.active .cx-thumb'); if (!tile) return;
+  const S = Math.round(Math.sqrt((bytes.length - 1) / 3)), W = tile.width, ctx = tile.getContext('2d'), img = ctx.createImageData(W, W), st = S / W;
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const v = S - 1 - Math.floor(y * st), u = Math.floor(x * st), o = 1 + (v * S + u) * 3, p = (y * W + x) * 4; img.data[p] = bytes[o]; img.data[p + 1] = bytes[o + 1]; img.data[p + 2] = bytes[o + 2]; img.data[p + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
 }

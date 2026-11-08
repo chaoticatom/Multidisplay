@@ -920,6 +920,22 @@ const COMMANDS = {
     this.state.prefs = prefs.save({ ...p, look: { ...p.look, ...msg, cmd: undefined } });
     this._broadcast(this._stateMsg());
   },
+  // Day > Ambient: {on, sleep?, wake?} - see wsServer _ambientTick().
+  setAmbient(ws, msg) {
+    const p = this.state.prefs || prefs.load(), a = { ...(p.ambient || {}) };
+    if (msg.on !== undefined) a.on = !!msg.on;
+    for (const k of ['sleep', 'wake']) if (Number.isInteger(msg[k])) a[k] = msg[k];
+    this.state.prefs = prefs.save({ ...p, ambient: a });
+    if (!a.on && this._ambientOff) { this.state.panelsOff = false; this._ambientOff = false; }
+    this._broadcast(this._stateMsg());
+  },
+  // Setup > Display > Look > View: {view: 'all'|'fr'|'rb'|'bl'|'lf'}.
+  setCubeView(ws, msg) {
+    if (!['all', 'fr', 'rb', 'bl', 'lf'].includes(msg.view)) return;
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, view: msg.view });
+    this._broadcast(this._stateMsg());
+  },
   // Setup > Display > Look > Bottom face: {bottom: 'effect'|'off'|'top'}.
   setBottomFace(ws, msg) {
     if (!['effect', 'off', 'top'].includes(msg.bottom)) return;

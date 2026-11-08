@@ -4957,6 +4957,10 @@ var PiEngine = (() => {
         look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: "auto" },
         transition: { style: "seamless", secs: 2.5, v3: true },
         // between effects - see effects/transition.js
+        ambient: { on: false, sleep: 23, wake: 7 },
+        // follow the day: brightness by the hour, panels off overnight - see wsServer _ambientTick
+        view: "all",
+        // cube: 'all' faces, or a corner ('fr', 'rb', 'bl', 'lf') - see tick.js cornerView()
         bottom: "effect",
         // cube bottom face: 'effect', 'off' or 'top' - see tick.js bottomFace()
         quality: "auto",
@@ -5006,6 +5010,14 @@ var PiEngine = (() => {
         }
         if (p && ["auto", "smooth", "detailed"].includes(p.quality)) out.quality = p.quality;
         if (p && ["effect", "off", "top"].includes(p.bottom)) out.bottom = p.bottom;
+        if (p && ["all", "fr", "rb", "bl", "lf"].includes(p.view)) out.view = p.view;
+        if (p && p.ambient && typeof p.ambient === "object") {
+          out.ambient = { ...out.ambient, on: !!p.ambient.on };
+          for (const k of ["sleep", "wake"]) {
+            const h = Number(p.ambient[k]);
+            if (Number.isInteger(h) && h >= 0 && h < 24) out.ambient[k] = h;
+          }
+        }
         if (p && p.transition) {
           if (require_transition().STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
           const secs = Number(p.transition.secs);
@@ -21259,6 +21271,181 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/cubeScenes2.js
+  var require_cubeScenes2 = __commonJS({
+    "src/effects/cubeScenes2.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineFieldEffect } = require_surface();
+      var { sceneUV, ringUV, fbm, vnoise, hash2, clamp, smooth } = require_sceneKit();
+      var { hsl } = require_core();
+      function globeDir(p, core) {
+        if (p.flat) {
+          const [x2, y2, w] = sceneUV(p, core);
+          const u = x2 / w * 2 - 1, v = y2 * 2 - 1, r2 = u * u + v * v;
+          if (r2 > 1) return null;
+          return [u, -v, Math.sqrt(1 - r2)];
+        }
+        const x = p.x - 0.5, y = p.y - 0.5, z = p.z - 0.5, n = Math.hypot(x, y, z) || 1;
+        return [x / n, y / n, z / n];
+      }
+      var globe = defineFieldEffect({
+        smooth: true,
+        // a slowly varying picture: sampled and blended (see surface.js)
+        speed: 1,
+        pixel(p, { t, core }) {
+          const d = globeDir(p, core);
+          if (!d) {
+            const s = hash2(Math.floor(p.x * 300), Math.floor(p.y * 200)) > 0.996 ? 0.5 : 0;
+            return [s, s, s + 0.02];
+          }
+          const spin = t * 0.08, lat = Math.asin(d[1]), lon = Math.atan2(d[0], d[2]) + spin;
+          const lx = Math.cos(lat) * Math.cos(lon), lz = Math.cos(lat) * Math.sin(lon);
+          const land = fbm(lx * 1.6 + 7, lz * 1.6 + d[1] * 1.3, 4) + fbm(d[1] * 2 + 3, lx * 1.3, 2) * 0.35;
+          const ice = Math.abs(d[1]) > 0.86;
+          let r, g, b;
+          if (ice) {
+            r = 0.85;
+            g = 0.9;
+            b = 0.95;
+          } else if (land > 0.62) {
+            const k2 = (land - 0.62) * 3;
+            r = 0.18 + k2 * 0.4;
+            g = 0.38 + k2 * 0.15;
+            b = 0.12;
+          } else {
+            const deep = clamp((0.62 - land) * 4);
+            r = 0.02;
+            g = 0.12 + 0.12 * (1 - deep);
+            b = 0.32 + 0.2 * (1 - deep);
+          }
+          const cl = smooth(0.55, 0.8, fbm(lx * 2.4 + t * 0.03, lz * 2.4 + d[1] * 2, 3));
+          r += (0.9 - r) * cl * 0.8;
+          g += (0.92 - g) * cl * 0.8;
+          b += (0.95 - b) * cl * 0.8;
+          const now = /* @__PURE__ */ new Date(), sunLon = -((now.getUTCHours() + now.getUTCMinutes() / 60) / 24) * Math.PI * 2 + Math.PI + spin;
+          const sx = Math.cos(sunLon), sz = Math.sin(sunLon), lit = clamp(Math.cos(lat) * (Math.cos(lon) * sx + Math.sin(lon) * sz) * 4 + 0.5);
+          const cityLights = !ice && land > 0.64 && hash2(Math.floor(lx * 90 + 500), Math.floor(lz * 90 + d[1] * 60 + 500)) > 0.93 ? 0.6 : 0;
+          const k = 0.12 + 0.88 * lit, night = 1 - lit;
+          return [r * k + cityLights * night * 1, g * k + cityLights * night * 0.8, b * k + cityLights * night * 0.4 + 0.015 * night];
+        }
+      });
+      var BANDS = 24;
+      var eq = { lv: new Float32Array(BANDS), pk: new Float32Array(BANDS), beat: 0 };
+      var eqtower = defineFieldEffect({
+        speed: 1,
+        frame({ t, dt, core }) {
+          const a = core && core.audio && core.audio.active ? core.audio : null;
+          for (let b = 0; b < BANDS; b++) {
+            const f = b / (BANDS - 1);
+            const want = a ? clamp((a.bass * (1 - f) * 1.3 + a.mid * (1 - Math.abs(f - 0.5) * 2) + a.treble * f * 1.2) * 0.9 + 0.08 * Math.sin(t * 9 + b)) : 0.25 + 0.2 * Math.sin(t * 1.7 + b * 0.6) + 0.1 * Math.sin(t * 3.1 + b * 1.3);
+            eq.lv[b] += (want - eq.lv[b]) * Math.min(1, dt * (want > eq.lv[b] ? 18 : 5));
+            eq.pk[b] = Math.max(eq.lv[b], eq.pk[b] - dt * 0.4);
+          }
+          eq.beat = Math.max(a ? a.beat || 0 : 0, eq.beat - dt * 3);
+        },
+        pixel(p, { core }) {
+          let x, y, w = 1;
+          if (p.flat) [x, y, w] = sceneUV(p, core);
+          else {
+            const r = ringUV(p);
+            if (!r[3]) {
+              if (r[4]) return [0, 0, 0];
+              const d = Math.hypot(r[0] - 0.5, r[1] - 0.5);
+              const k = eq.beat * Math.exp(-d * 4);
+              return [k * 0.4 + 0.02, k * 0.9 + 0.02, k + 0.05];
+            }
+            x = r[0];
+            y = r[1];
+            w = 4;
+          }
+          const b = Math.min(BANDS - 1, Math.floor(x / w * BANDS)), fx = x / w * BANDS - b;
+          if (fx < 0.12 || fx > 0.88) return [0.01, 0.01, 0.02];
+          const h = 1 - y, lv = eq.lv[b], seg = Math.floor(h * 16) / 16;
+          if (Math.abs(h - eq.pk[b]) < 0.02) return [0.95, 0.95, 1];
+          if (seg > lv) return [0.01, 0.012, 0.025];
+          const c = hsl(0.55 - seg * 0.55, 1, 0.5), gap = h * 16 % 1 < 0.15 ? 0.35 : 1;
+          return [c[0] * gap, c[1] * gap, c[2] * gap];
+        }
+      });
+      var lighthouse = defineFieldEffect({
+        fine: true,
+        speed: 1,
+        pixel(p, { t, core }) {
+          let x, y, w = 4, top = false, bottom = false;
+          if (p.flat) [x, y, w] = sceneUV(p, core);
+          else {
+            const r2 = ringUV(p);
+            [x, y] = r2;
+            top = !r2[3] && !r2[4];
+            bottom = r2[4];
+          }
+          const sweep = t * 0.25 % 1;
+          if (top) {
+            const dx = x - 0.5, dz = y - 0.5, d = Math.hypot(dx, dz), a = (Math.atan2(dz, dx) / (Math.PI * 2) + 1) % 1;
+            const beam2 = Math.max(0, 1 - Math.abs((a - sweep + 1.5) % 1 - 0.5) * 14) * clamp(1 - d * 1.4);
+            const lamp = Math.exp(-d * d * 120);
+            return [0.02 + lamp + beam2 * 0.9, 0.025 + lamp * 0.95 + beam2 * 0.85, 0.05 + lamp * 0.7 + beam2 * 0.6];
+          }
+          if (bottom) return [5e-3, 0.015, 0.035];
+          const u = x / w;
+          let r = 0.01 + 0.02 * (1 - y), g = 0.015 + 0.03 * (1 - y), b = 0.05 + 0.06 * (1 - y);
+          if (hash2(Math.floor(x * 60), Math.floor(y * 60)) > 0.988 && y < 0.5) {
+            r += 0.4;
+            g += 0.4;
+            b += 0.45;
+          }
+          const horizon = 0.62;
+          if (y > horizon) {
+            const wave = 0.5 + 0.5 * Math.sin(x * 40 + y * 90 - t * 2 + Math.sin(x * 9) * 2);
+            r = 0.01;
+            g = 0.03 + wave * 0.03;
+            b = 0.07 + wave * 0.05;
+          }
+          const off = Math.abs((u - sweep + 1.5) % 1 - 0.5), beam = Math.exp(-((off / 0.06) ** 2)) * (y < horizon ? 1 - Math.abs(y - 0.4) * 1.4 : 0.35 * (1 - (y - horizon)));
+          r += beam * 0.95;
+          g += beam * 0.9;
+          b += beam * 0.65;
+          return [clamp(r, 0, 1.2), clamp(g, 0, 1.2), clamp(b, 0, 1.2)];
+        }
+      });
+      var rainglass = defineFieldEffect({
+        fine: true,
+        speed: 1,
+        pixel(p, { t, core }) {
+          let x, y, w = 4, top = false;
+          if (p.flat) [x, y, w] = sceneUV(p, core);
+          else {
+            const r2 = ringUV(p);
+            [x, y] = r2;
+            top = !r2[3];
+          }
+          if (top) {
+            const c = 0.08 + 0.05 * fbm(x * 3 + t * 0.05, y * 3, 3);
+            return [c * 0.8, c * 0.85, c];
+          }
+          const bx = x * 5, by = y * 5;
+          let r = 0.03, g = 0.035, b = 0.06;
+          for (let k2 = 0; k2 < 3; k2++) {
+            const cx = Math.floor(bx) + hash2(Math.floor(bx), k2), cy = 2.5 + hash2(k2, Math.floor(bx)) * 2.3, d = Math.hypot(bx - cx, by - cy);
+            const col2 = hsl(hash2(Math.floor(bx), k2 + 9) * 0.15 + (k2 === 1 ? 0.55 : 0.05), 0.9, 0.5), a = Math.exp(-d * d * 3) * 0.35;
+            r += col2[0] * a;
+            g += col2[1] * a;
+            b += col2[2] * a;
+          }
+          const gx = x * 22, gy = y * 22, ix = Math.floor(gx), iy = Math.floor(gy);
+          const bead = hash2(ix, iy) > 0.72 ? Math.max(0, 1 - Math.hypot(gx - ix - 0.5, gy - iy - 0.5) * 3.2) : 0;
+          const col = Math.floor(x * 9), sp = 0.25 + hash2(col, 3) * 0.35, ry = (t * sp + hash2(col, 7)) % 1.3 - 0.15, rx = (col + 0.5) / 9 * w / w;
+          const dxr = x - (col + 0.5 + Math.sin(y * 20 + col) * 0.15) / 9, runner = Math.max(0, 1 - Math.hypot(dxr * 40, (y - ry) * 30)) + (y < ry && Math.abs(dxr * 40) < 0.3 ? 0.25 * (1 - (ry - y) * 2) : 0);
+          const k = Math.min(1, bead + Math.max(0, runner));
+          return [r + k * 0.35, g + k * 0.4, b + k * 0.5];
+        }
+      });
+      module.exports = { globe, eqtower, lighthouse, rainglass };
+    }
+  });
+
   // src/effects/aquarium.js
   var require_aquarium = __commonJS({
     "src/effects/aquarium.js"(exports, module) {
@@ -21773,7 +21960,7 @@ var PiEngine = (() => {
         const g = (core, dt) => {
           const r = fn(core, dt);
           try {
-            top(core);
+            top(core, fn);
           } catch (e) {
           }
           return r;
@@ -21781,7 +21968,69 @@ var PiEngine = (() => {
         for (const k of Object.keys(fn)) g[k] = fn[k];
         return g;
       }
-      module.exports = { withTop, clockTop, moonTop, recordTop };
+      function diceTop(core, fn) {
+        const st = fn.getStatus ? fn.getStatus() : null, vals = st && st.values || [];
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf, n = Math.max(1, vals.length);
+        const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+        const size = Math.min(0.36, 0.86 / n), gap = (1 - n * size) / (n + 1);
+        for (const i of topPixels(core)) {
+          const x = X[i], y = Z[i], o = i * 3;
+          let R = 0.02, G = 0.12, B = 0.05;
+          for (let k = 0; k < vals.length; k++) {
+            const cx = gap + size / 2 + k * (size + gap), dx = (x - cx) / (size / 2), dy = (y - 0.5) / (size / 2);
+            if (Math.max(Math.abs(dx), Math.abs(dy)) > 1) continue;
+            const corner = Math.hypot(Math.max(0, Math.abs(dx) - 0.75), Math.max(0, Math.abs(dy) - 0.75)) > 0.25;
+            if (corner) continue;
+            R = 0.92;
+            G = 0.92;
+            B = 0.88;
+            for (const [px, py] of PIPS[vals[k]] || []) if (Math.hypot(dx - px * 0.5, dy - py * 0.5) < 0.17) {
+              R = 0.05;
+              G = 0.05;
+              B = 0.08;
+            }
+          }
+          cb[o] = R;
+          cb[o + 1] = G;
+          cb[o + 2] = B;
+        }
+      }
+      function coinTop(core, fn) {
+        const st = fn.getStatus ? fn.getStatus() : null, last = st && st.last;
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf;
+        for (const i of topPixels(core)) {
+          const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3;
+          let R = 0.01, G = 0.01, B = 0.02;
+          if (d < 0.38) {
+            const rim = d > 0.33 ? 0.75 : 1, shine = 0.75 + 0.25 * (1 - (x + y + 0.7) / 1.4);
+            R = 1 * rim * shine;
+            G = 0.78 * rim * shine;
+            B = 0.25 * rim * shine;
+            const u = x / 0.22, v = y / 0.22, inL = Math.abs(u) < 1 && Math.abs(v) < 1;
+            const H = inL && (Math.abs(Math.abs(u) - 0.75) < 0.2 || Math.abs(v) < 0.15), T = inL && (v < -0.7 && v > -1 || Math.abs(u) < 0.15);
+            if (last === "heads" && H || last === "tails" && T) {
+              R *= 0.45;
+              G *= 0.35;
+              B *= 0.2;
+            }
+          }
+          cb[o] = R;
+          cb[o + 1] = G;
+          cb[o + 2] = B;
+        }
+      }
+      function haloTop(core) {
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf, t = core.t || 0;
+        for (const i of topPixels(core)) {
+          const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3;
+          const ring = Math.exp(-(((d - 0.3) / 0.05) ** 2)) * (0.5 + 0.15 * Math.sin(t * 2));
+          const st = Math.sin(X[i] * 517.3 + Z[i] * 213.9) * 43758.5, star = st - Math.floor(st) > 0.985 && d > 0.38 ? 0.35 + 0.25 * Math.sin(t * 3 + st) : 0;
+          cb[o] = 0.01 + ring * 0.9 + star;
+          cb[o + 1] = 0.012 + ring * 0.85 + star;
+          cb[o + 2] = 0.03 + ring * 0.55 + star;
+        }
+      }
+      module.exports = { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop };
     }
   });
 
@@ -31980,9 +32229,10 @@ var PiEngine = (() => {
       var prism = require_prism();
       var tide = require_tide();
       var rubiks = require_rubiks();
+      var cubeScenes2 = require_cubeScenes2();
       var aquarium = require_aquarium();
       var datetime = require_clock();
-      var { withTop, clockTop, moonTop, recordTop } = require_cubeTops();
+      var { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require_cubeTops();
       var ghost = require_ghostFace();
       var ghost3d = require_ghost3d();
       var moon = require_celestial();
@@ -32053,6 +32303,10 @@ var PiEngine = (() => {
         fluid_ink: fluidInk.wall,
         lava_lamp: lavaLamp.wall,
         rubiks: rubiks.wall,
+        globe: cubeScenes2.globe.wall,
+        eqtower: cubeScenes2.eqtower.wall,
+        lighthouse: cubeScenes2.lighthouse.wall,
+        rainglass: cubeScenes2.rainglass.wall,
         aquarium: aquarium.wall,
         ai_art: aiArt.wall,
         gradient_wash: gradientWashWall,
@@ -32107,7 +32361,7 @@ var PiEngine = (() => {
       var EFFECTS = {
         my_photos: myPhotos,
         ambient_weather: ambientWeather,
-        pixel_pet: pixelPet,
+        pixel_pet: withTop(pixelPet, haloTop),
         snake,
         now_playing: withTop(nowPlaying, recordTop),
         message: messageBoard,
@@ -32118,13 +32372,17 @@ var PiEngine = (() => {
         fluid_ink: fluidInk,
         lava_lamp: lavaLamp,
         rubiks,
+        globe: cubeScenes2.globe,
+        eqtower: cubeScenes2.eqtower,
+        lighthouse: cubeScenes2.lighthouse,
+        rainglass: cubeScenes2.rainglass,
         aquarium,
         ai_art: aiArt,
         wave,
         gradient_wash: gradientWash,
         weather,
         radar,
-        talking_face: talkingFace,
+        talking_face: withTop(talkingFace, haloTop),
         easter_egg: easterEgg,
         rain,
         plasma,
@@ -32138,8 +32396,8 @@ var PiEngine = (() => {
         cam,
         maze,
         tron,
-        coinflip,
-        dice,
+        coinflip: withTop(coinflip, coinTop),
+        dice: withTop(dice, diceTop),
         random,
         random80s,
         fireworks,
@@ -32154,8 +32412,8 @@ var PiEngine = (() => {
         depth_rings: depthRings,
         prism,
         tide,
-        ghost,
-        ghost2: ghost3d,
+        ghost: withTop(ghost, haloTop),
+        ghost2: withTop(ghost3d, haloTop),
         datetime: withTop(datetime, clockTop),
         moon: withTop(moon, moonTop),
         epic,
@@ -32190,6 +32448,10 @@ var PiEngine = (() => {
         fluid_ink: "Fluid Ink",
         lava_lamp: "Lava Lamp",
         rubiks: "Rubik's Cube",
+        globe: "Globe",
+        eqtower: "Equaliser Tower",
+        lighthouse: "Lighthouse",
+        rainglass: "Rain on Glass",
         aquarium: "Aquarium",
         ai_art: "AI Art",
         wave: "Colour Falls",
@@ -33677,6 +33939,7 @@ var PiEngine = (() => {
           pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
           if (cubeMode) bottomFace(core, state.prefs && state.prefs.bottom);
+          if (cubeMode) cornerView(core, state.prefs && state.prefs.view);
           try {
             require_planes().alert(core, config.mode, state, dt);
           } catch (e) {
@@ -33704,6 +33967,28 @@ var PiEngine = (() => {
           alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
         }
         renderNotice(core, state, config.mode, dt);
+      }
+      var CORNER = { fr: [0, 2], rb: [2, 1], bl: [1, 3], lf: [3, 0] };
+      function cornerView(core, view) {
+        const keep = CORNER[view];
+        if (!keep) return;
+        const vis = [...keep, 4], cb = core.colBuf;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (const f of vis) for (const i of core.faceMap[f]) if (i >= 0) {
+          r += cb[i * 3];
+          g += cb[i * 3 + 1];
+          b += cb[i * 3 + 2];
+          n++;
+        }
+        const k = n ? 0.12 / n : 0;
+        for (let f = 0; f < 6; f++) {
+          if (vis.includes(f)) continue;
+          for (const i of core.faceMap[f]) if (i >= 0) {
+            cb[i * 3] = r * k;
+            cb[i * 3 + 1] = g * k;
+            cb[i * 3 + 2] = b * k;
+          }
+        }
       }
       function bottomFace(core, mode) {
         if (mode !== "off" && mode !== "top") return;

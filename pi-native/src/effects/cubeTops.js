@@ -86,9 +86,61 @@ function recordTop(core) {
 }
 
 function withTop(fn, top) {
-  const g = (core, dt) => { const r = fn(core, dt); try { top(core); } catch (e) { /* the sides still show */ } return r; };
+  const g = (core, dt) => { const r = fn(core, dt); try { top(core, fn); } catch (e) { /* the sides still show */ } return r; };
   for (const k of Object.keys(fn)) g[k] = fn[k];
   return g;
 }
 
-module.exports = { withTop, clockTop, moonTop, recordTop };
+
+// Dice: the dice as they landed, seen from above - white dice with their
+// pips, side by side on green felt (getStatus gives the values).
+function diceTop(core, fn) {
+  const st = fn.getStatus ? fn.getStatus() : null, vals = (st && st.values) || [];
+  const X = core.surfX, Z = core.surfZ, cb = core.colBuf, n = Math.max(1, vals.length);
+  const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+  const size = Math.min(0.36, 0.86 / n), gap = (1 - n * size) / (n + 1);
+  for (const i of topPixels(core)) {
+    const x = X[i], y = Z[i], o = i * 3;
+    let R = 0.02, G = 0.12, B = 0.05; // felt
+    for (let k = 0; k < vals.length; k++) {
+      const cx = gap + size / 2 + k * (size + gap), dx = (x - cx) / (size / 2), dy = (y - 0.5) / (size / 2);
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > 1) continue;
+      const corner = Math.hypot(Math.max(0, Math.abs(dx) - 0.75), Math.max(0, Math.abs(dy) - 0.75)) > 0.25;
+      if (corner) continue;
+      R = 0.92; G = 0.92; B = 0.88;
+      for (const [px, py] of PIPS[vals[k]] || []) if (Math.hypot(dx - px * 0.5, dy - py * 0.5) < 0.17) { R = 0.05; G = 0.05; B = 0.08; }
+    }
+    cb[o] = R; cb[o + 1] = G; cb[o + 2] = B;
+  }
+}
+// Coin Flip: the last result, a big gold coin with H or T.
+function coinTop(core, fn) {
+  const st = fn.getStatus ? fn.getStatus() : null, last = st && st.last;
+  const X = core.surfX, Z = core.surfZ, cb = core.colBuf;
+  for (const i of topPixels(core)) {
+    const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3;
+    let R = 0.01, G = 0.01, B = 0.02;
+    if (d < 0.38) {
+      const rim = d > 0.33 ? 0.75 : 1, shine = 0.75 + 0.25 * (1 - (x + y + 0.7) / 1.4);
+      R = 1 * rim * shine; G = 0.78 * rim * shine; B = 0.25 * rim * shine;
+      // The letter: H (two bars and a crossbar) or T (a top bar and a stem).
+      const u = x / 0.22, v = y / 0.22, inL = Math.abs(u) < 1 && Math.abs(v) < 1;
+      const H = inL && (Math.abs(Math.abs(u) - 0.75) < 0.2 || Math.abs(v) < 0.15), T = inL && ((v < -0.7 && v > -1) || Math.abs(u) < 0.15);
+      if ((last === 'heads' && H) || (last === 'tails' && T)) { R *= 0.45; G *= 0.35; B *= 0.2; }
+    }
+    cb[o] = R; cb[o + 1] = G; cb[o + 2] = B;
+  }
+}
+// The characters (Pixel Pet, the Ghost Faces, Talking Face): a night sky
+// over their heads with a soft halo of light where they stand.
+function haloTop(core) {
+  const X = core.surfX, Z = core.surfZ, cb = core.colBuf, t = core.t || 0;
+  for (const i of topPixels(core)) {
+    const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3;
+    const ring = Math.exp(-(((d - 0.3) / 0.05) ** 2)) * (0.5 + 0.15 * Math.sin(t * 2));
+    const st = Math.sin(X[i] * 517.3 + Z[i] * 213.9) * 43758.5, star = st - Math.floor(st) > 0.985 && d > 0.38 ? 0.35 + 0.25 * Math.sin(t * 3 + st) : 0;
+    cb[o] = 0.01 + ring * 0.9 + star; cb[o + 1] = 0.012 + ring * 0.85 + star; cb[o + 2] = 0.03 + ring * 0.55 + star;
+  }
+}
+
+module.exports = { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop };
