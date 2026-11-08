@@ -4957,6 +4957,8 @@ var PiEngine = (() => {
         look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: "auto" },
         transition: { style: "seamless", secs: 2.5, v3: true },
         // between effects - see effects/transition.js
+        bottom: "effect",
+        // cube bottom face: 'effect', 'off' or 'top' - see tick.js bottomFace()
         quality: "auto",
         // colour effects: 'auto' (eases off when the Pi is slow), 'smooth' (always fast) or 'detailed' - see effects/surface.js
         // Automatic show (see src/autoShow.js).
@@ -5003,6 +5005,7 @@ var PiEngine = (() => {
           if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
         }
         if (p && ["auto", "smooth", "detailed"].includes(p.quality)) out.quality = p.quality;
+        if (p && ["effect", "off", "top"].includes(p.bottom)) out.bottom = p.bottom;
         if (p && p.transition) {
           if (require_transition().STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
           const secs = Number(p.transition.secs);
@@ -21076,6 +21079,313 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/rubiks.js
+  var require_rubiks = __commonJS({
+    "src/effects/rubiks.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var COLS = { "1,0,0": [1, 0.35, 0.05], "-1,0,0": [0.85, 0.05, 0.08], "0,1,0": [0.95, 0.95, 0.95], "0,-1,0": [1, 0.85, 0.05], "0,0,1": [0.05, 0.75, 0.25], "0,0,-1": [0.1, 0.3, 0.95] };
+      var SCRAMBLE = 22;
+      var TURN_S = 0.32;
+      var PAUSE_S = 2.5;
+      var st = { stickers: null, moves: [], seq: [], step: 0, phase: "pause", tPhase: 0, cur: null, ang: 0 };
+      function reset() {
+        st.stickers = [];
+        for (const [key, col] of Object.entries(COLS)) {
+          const n = key.split(",").map(Number), a = n.findIndex((v) => v !== 0);
+          for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+            const p = [0, 0, 0], others = [0, 1, 2].filter((k) => k !== a);
+            p[a] = n[a];
+            p[others[0]] = i;
+            p[others[1]] = j;
+            st.stickers.push({ p, n: n.slice(), col });
+          }
+        }
+        index();
+      }
+      var rot = (v, axis, dir) => {
+        const [x, y, z] = v;
+        if (axis === 0) return [x, -dir * z, dir * y];
+        if (axis === 1) return [dir * z, y, -dir * x];
+        return [-dir * y, dir * x, z];
+      };
+      function apply(m) {
+        for (const s of st.stickers) if (s.p[m.axis] === m.layer) {
+          s.p = rot(s.p, m.axis, m.dir);
+          s.n = rot(s.n, m.axis, m.dir);
+        }
+        index();
+      }
+      function index() {
+        st.map = /* @__PURE__ */ new Map();
+        for (const s of st.stickers) {
+          const ax = s.n.findIndex((v) => v !== 0), o = [0, 1, 2].filter((k) => k !== ax);
+          st.map.set(ax * 2 + (s.n[ax] > 0 ? 1 : 0) + "," + s.p[o[0]] + "," + s.p[o[1]], s);
+        }
+      }
+      function newScramble() {
+        st.seq = [];
+        let last = -1;
+        for (let i = 0; i < SCRAMBLE; i++) {
+          let axis;
+          do
+            axis = Math.floor(Math.random() * 3);
+          while (axis === last);
+          last = axis;
+          st.seq.push({ axis, layer: [-1, 1][Math.floor(Math.random() * 2)], dir: Math.random() < 0.5 ? 1 : -1 });
+        }
+        st.moves = st.seq.concat(st.seq.slice().reverse().map((m) => ({ ...m, dir: -m.dir })));
+        st.step = 0;
+      }
+      function update(dt) {
+        if (!st.stickers) {
+          reset();
+          newScramble();
+        }
+        st.tPhase += dt;
+        if (st.phase === "pause") {
+          if (st.tPhase > PAUSE_S) {
+            st.phase = "turn";
+            st.tPhase = 0;
+            st.cur = st.moves[st.step];
+          }
+          return;
+        }
+        st.ang = Math.min(1, st.tPhase / TURN_S);
+        if (st.tPhase >= TURN_S) {
+          apply(st.cur);
+          st.step++;
+          st.tPhase = 0;
+          st.ang = 0;
+          if (st.step >= st.moves.length) {
+            st.phase = "pause";
+            st.cur = null;
+            newScramble();
+            return;
+          }
+          if (st.step === SCRAMBLE) {
+            st.phase = "pause";
+            st.tPhase = PAUSE_S * 0.4;
+            st.cur = null;
+            return;
+          }
+          st.cur = st.moves[st.step];
+        }
+      }
+      var tmp = [0, 0, 0];
+      var q2 = [0, 0, 0];
+      var qn2 = [0, 0, 0];
+      var OUT = [0, 0, 0];
+      var GAP = [0.02, 0.02, 0.025];
+      var OTH = [[1, 2], [0, 2], [0, 1]];
+      function colourAt(normal, ax, a, b) {
+        const others = OTH[ax];
+        tmp[ax] = normal[ax] * 1.5;
+        tmp[others[0]] = a;
+        tmp[others[1]] = b;
+        let q = tmp, qn = normal;
+        if (st.cur && st.ang > 0) {
+          const m = st.cur, inLayer = Math.abs(tmp[m.axis] - m.layer) < 0.5 || m.axis === ax && Math.sign(tmp[ax]) === m.layer;
+          if (inLayer) {
+            const th = -st.ang * m.dir * Math.PI / 2, c = Math.cos(th), s = Math.sin(th), [x, y, z] = tmp;
+            const turn = (v, o) => {
+              const [a0, a1, a2] = v;
+              if (m.axis === 0) {
+                o[0] = a0;
+                o[1] = c * a1 - s * a2;
+                o[2] = s * a1 + c * a2;
+              } else if (m.axis === 1) {
+                o[0] = c * a0 + s * a2;
+                o[1] = a1;
+                o[2] = -s * a0 + c * a2;
+              } else {
+                o[0] = c * a0 - s * a1;
+                o[1] = s * a0 + c * a1;
+                o[2] = a2;
+              }
+              return o;
+            };
+            q = turn(tmp, q2);
+            qn = turn(normal, qn2);
+          }
+        }
+        const nax = Math.abs(qn[0]) >= Math.abs(qn[1]) ? Math.abs(qn[0]) >= Math.abs(qn[2]) ? 0 : 2 : Math.abs(qn[1]) >= Math.abs(qn[2]) ? 1 : 2, oth = OTH[nax];
+        const ci = Math.max(-1, Math.min(1, Math.round(q[oth[0]]))), cj = Math.max(-1, Math.min(1, Math.round(q[oth[1]])));
+        const best = st.map.get(nax * 2 + (qn[nax] > 0 ? 1 : 0) + "," + ci + "," + cj);
+        const fa = Math.abs(a + 1.5) % 1, fb = Math.abs(b + 1.5) % 1, gap = fa < 0.07 || fa > 0.93 || fb < 0.07 || fb > 0.93;
+        if (!best || gap) return GAP;
+        const shade = 0.8 + 0.2 * (1 - Math.max(Math.abs(fa - 0.5), Math.abs(fb - 0.5)) * 2);
+        OUT[0] = best.col[0] * shade;
+        OUT[1] = best.col[1] * shade;
+        OUT[2] = best.col[2] * shade;
+        return OUT;
+      }
+      function rubiks(core, dt) {
+        core.t += dt;
+        update(dt);
+        if (!core._rubik || core._rubik.n !== core.N) {
+          const N = core.N, X = core.surfX, Y = core.surfY, Z = core.surfZ, g = [];
+          for (let i = 0; i < N; i++) {
+            const p = [X[i] * 2 - 1, Y[i] * 2 - 1, Z[i] * 2 - 1], ax = Math.abs(p[0]) >= Math.abs(p[1]) ? Math.abs(p[0]) >= Math.abs(p[2]) ? 0 : 2 : Math.abs(p[1]) >= Math.abs(p[2]) ? 1 : 2;
+            const normal = [0, 0, 0];
+            normal[ax] = Math.sign(p[ax]) || 1;
+            g.push({ i, ax, normal, a: p[OTH[ax][0]] * 1.5, b: p[OTH[ax][1]] * 1.5 });
+          }
+          core._rubik = { n: N, g };
+        }
+        for (const L of core._rubik.g) {
+          const c = colourAt(L.normal, L.ax, L.a, L.b);
+          core.setLED(L.i, c[0], c[1], c[2]);
+        }
+      }
+      var WALL_FACES = [[0, 0, 1], [1, 0, 0], [0, 0, -1], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
+      rubiks.wall = function rubiksWall(core, dt) {
+        core.t += dt;
+        update(dt);
+        if (!core.wallW) return;
+        const S = core.wallPanelSize;
+        core.wallPanels.forEach((pnl, k) => {
+          const normal = WALL_FACES[k % 6], ax = normal.findIndex((v) => v !== 0), others = OTH[ax];
+          for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+            const a = ((x + 0.5) / S * 2 - 1) * 1.5, b = (1 - (y + 0.5) / S * 2) * 1.5;
+            const c = colourAt(normal, ax, others[0] === 1 ? b : a, others[0] === 1 ? a : b);
+            core.setWallPixel(pnl.gx * S + x, pnl.gy * S + y, c[0], c[1], c[2]);
+          }
+        });
+      };
+      rubiks.getStatus = () => ({ step: st.step, of: st.moves.length, solving: st.step >= SCRAMBLE });
+      module.exports = rubiks;
+    }
+  });
+
+  // src/effects/aquarium.js
+  var require_aquarium = __commonJS({
+    "src/effects/aquarium.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { defineCanvasEffect, fillTop } = require_canvas();
+      var { hsl } = require_core();
+      var KINDS = [
+        { len: 9, h: 5, body: [1, 0.5, 0.05], stripe: [1, 1, 1] },
+        // clownfish
+        { len: 7, h: 5, body: [0.15, 0.45, 1], stripe: [1, 0.9, 0.1] },
+        // blue tang
+        { len: 6, h: 3, body: [0.2, 0.9, 0.9], stripe: [1, 0.2, 0.3] },
+        // neon tetra
+        { len: 11, h: 7, body: [1, 0.85, 0.2], stripe: [0.2, 0.1, 0.05] }
+        // angelfish
+      ];
+      var st = { W: 0, H: 0, fish: [], bubbles: [], weed: [] };
+      var rnd = (a, b) => a + Math.random() * (b - a);
+      function populate(W, H, wrap) {
+        st.W = W;
+        st.H = H;
+        const n = Math.round(W / 64 * 6);
+        st.fish = Array.from({ length: n }, () => {
+          const k = KINDS[Math.floor(Math.random() * KINDS.length)], dir = Math.random() < 0.5 ? 1 : -1;
+          return { k, x: rnd(0, W), y: rnd(H * 0.15, H * 0.75), dir, speed: rnd(6, 14), phase: rnd(0, 6), turnIn: rnd(4, 14), wrap };
+        });
+        st.weed = Array.from({ length: Math.round(W / 9) }, () => ({ x: rnd(0, W), h: rnd(H * 0.15, H * 0.4), hue: rnd(0.25, 0.4), ph: rnd(0, 6) }));
+        st.bubbles = [];
+      }
+      function drawFish(c, f, t) {
+        const { len, h, body, stripe } = f.k, sc = c.H / 64;
+        const L = len * sc, Hh = h * sc, tail = Math.sin(t * 8 + f.phase) * 1.2 * sc;
+        for (let i = -L / 2 - 3 * sc; i <= L / 2; i++) {
+          const u = (i + L / 2) / L;
+          let half;
+          if (u < 0) half = -u * L / (3 * sc) * Hh * 0.55;
+          else half = Math.sin(Math.min(1, u) * Math.PI) * Hh / 2 + (u < 0.2 ? 0.4 : 0);
+          for (let j = -half; j <= half; j++) {
+            const x = f.x + i * f.dir, y = f.y + j + (u < 0 ? tail * -u : 0);
+            const band = u > 0.25 && u < 0.35 || u > 0.6 && u < 0.67 && len > 8;
+            const shade = 0.55 + 0.45 * (1 - Math.abs(j) / (half + 0.5)) - (j > 0 ? 0.15 : 0);
+            const col = band ? stripe : body;
+            c.set(x, y, col[0] * shade, col[1] * shade, col[2] * shade);
+          }
+        }
+        c.set(f.x + (L / 2 - 1.5 * sc) * f.dir, f.y - Hh * 0.15, 0.02, 0.02, 0.02);
+      }
+      var tank = defineCanvasEffect({
+        panorama: true,
+        caps: surfaceTop,
+        render(c, { t, dt }) {
+          const W = c.W, H = c.H;
+          if (st.W !== W || st.H !== H) populate(W, H, !!c.wrap);
+          const wx = (x) => c.wrap ? (x % W + W) % W : x;
+          const floor = H * 0.86;
+          for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const v = y / H;
+            let r = 0.01 + 0.03 * (1 - v), g = 0.06 + 0.12 * (1 - v), b = 0.14 + 0.2 * (1 - v);
+            const ray = Math.max(0, Math.sin(x * 0.11 + Math.sin(t * 0.4 + x * 0.03) * 2 + y * 0.04)) ** 8 * 0.06 * (1 - v);
+            r += ray;
+            g += ray * 1.2;
+            b += ray * 1.2;
+            if (y > floor) {
+              const s = 0.18 + 0.05 * Math.sin(x * 1.7 + y * 3.1);
+              r = s;
+              g = s * 0.85;
+              b = s * 0.55;
+            }
+            c.set(x, y, r, g, b);
+          }
+          for (const w of st.weed) for (let k = 0; k < w.h; k++) {
+            const x = w.x + Math.sin(t * 1.2 + w.ph + k * 0.15) * k * 0.12, [r, g, b] = hsl(w.hue, 0.7, 0.18 + 0.1 * (k / w.h));
+            c.set(wx(x), floor - k, r, g, b);
+            c.set(wx(x + 1), floor - k, r * 0.6, g * 0.6, b * 0.6);
+          }
+          for (const f of st.fish) {
+            f.x += f.dir * f.speed * dt;
+            f.y += Math.sin(t * 0.6 + f.phase) * dt * 2;
+            if ((f.turnIn -= dt) <= 0) {
+              f.dir = -f.dir;
+              f.turnIn = rnd(6, 16);
+            }
+            if (c.wrap) f.x = wx(f.x);
+            else if (f.x < -10 || f.x > W + 10) f.dir = f.x < 0 ? 1 : -1;
+            drawFish(c, f, t);
+            if (c.wrap && (f.x < 8 || f.x > W - 8)) {
+              const x0 = f.x;
+              f.x = f.x < 8 ? f.x + W : f.x - W;
+              drawFish(c, f, t);
+              f.x = x0;
+            }
+          }
+          if (Math.random() < dt * W / 30) st.bubbles.push({ x: rnd(0, W), y: floor, r: rnd(0.6, 1.6) * H / 64, w: rnd(0, 6) });
+          for (const b of st.bubbles) {
+            b.y -= dt * (10 + b.r * 6);
+            const x = b.x + Math.sin(t * 3 + b.w) * 1.2;
+            c.add(wx(x), b.y, 0.25, 0.35, 0.45);
+            if (b.r > 1.1) {
+              c.add(wx(x + 1), b.y, 0.12, 0.18, 0.22);
+              c.add(wx(x), b.y - 1, 0.12, 0.18, 0.22);
+            }
+          }
+          st.bubbles = st.bubbles.filter((b) => b.y > 0);
+        }
+      });
+      function surfaceTop(core, face, t) {
+        if (face === 5) {
+          fillTop(core, 0.16, 0.14, 0.09, 5);
+          return;
+        }
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf;
+        for (const i of core.faceMap[4]) {
+          if (i < 0) continue;
+          const x = X[i] * 9, z = Z[i] * 9;
+          const c1 = Math.sin(x + Math.sin(z * 1.3 + t * 0.9) * 1.4 + t * 0.6), c2 = Math.sin(z * 1.1 + Math.sin(x * 0.9 - t * 0.7) * 1.5 - t * 0.5);
+          const caustic = Math.pow(Math.max(0, 1 - Math.abs(c1 + c2) * 0.6), 4), o = i * 3;
+          cb[o] = 0.04 + caustic * 0.35;
+          cb[o + 1] = 0.16 + caustic * 0.55;
+          cb[o + 2] = 0.3 + caustic * 0.6;
+        }
+      }
+      module.exports = tank;
+    }
+  });
+
   // src/effects/clock.js
   var require_clock = __commonJS({
     "src/effects/clock.js"(exports, module) {
@@ -31669,6 +31979,8 @@ var PiEngine = (() => {
       var depthRings = require_depthRings();
       var prism = require_prism();
       var tide = require_tide();
+      var rubiks = require_rubiks();
+      var aquarium = require_aquarium();
       var datetime = require_clock();
       var { withTop, clockTop, moonTop, recordTop } = require_cubeTops();
       var ghost = require_ghostFace();
@@ -31740,6 +32052,8 @@ var PiEngine = (() => {
         starfield: starfield.wall,
         fluid_ink: fluidInk.wall,
         lava_lamp: lavaLamp.wall,
+        rubiks: rubiks.wall,
+        aquarium: aquarium.wall,
         ai_art: aiArt.wall,
         gradient_wash: gradientWashWall,
         video: videoWall,
@@ -31803,6 +32117,8 @@ var PiEngine = (() => {
         starfield,
         fluid_ink: fluidInk,
         lava_lamp: lavaLamp,
+        rubiks,
+        aquarium,
         ai_art: aiArt,
         wave,
         gradient_wash: gradientWash,
@@ -31873,6 +32189,8 @@ var PiEngine = (() => {
         starfield: "Starfield",
         fluid_ink: "Fluid Ink",
         lava_lamp: "Lava Lamp",
+        rubiks: "Rubik's Cube",
+        aquarium: "Aquarium",
         ai_art: "AI Art",
         wave: "Colour Falls",
         gradient_wash: "Rainbow Wash",
@@ -31894,7 +32212,7 @@ var PiEngine = (() => {
         tron: "Tron Bikes",
         coinflip: "Coin Flip",
         dice: "Dice Roll",
-        random: "Random 1",
+        random: "Random Chaos",
         random80s: "Random 80s",
         fireworks: "Fireworks",
         retro: "Retro",
@@ -33358,6 +33676,7 @@ var PiEngine = (() => {
           if (xfLive) core._xfNew.set(buf);
           pulseBuffer(core.audio, buf, react);
           applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+          if (cubeMode) bottomFace(core, state.prefs && state.prefs.bottom);
           try {
             require_planes().alert(core, config.mode, state, dt);
           } catch (e) {
@@ -33385,6 +33704,24 @@ var PiEngine = (() => {
           alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
         }
         renderNotice(core, state, config.mode, dt);
+      }
+      function bottomFace(core, mode) {
+        if (mode !== "off" && mode !== "top") return;
+        const S = core.SIZE, bot = core.faceMap[5], top = core.faceMap[4], cb = core.colBuf;
+        for (let k = 0; k < S * S; k++) {
+          const i = bot[k];
+          if (i < 0) continue;
+          const o = i * 3, j = mode === "top" ? top[k] : -1;
+          if (j < 0) {
+            cb[o] = 0;
+            cb[o + 1] = 0;
+            cb[o + 2] = 0;
+          } else {
+            cb[o] = cb[j * 3];
+            cb[o + 1] = cb[j * 3 + 1];
+            cb[o + 2] = cb[j * 3 + 2];
+          }
+        }
       }
       module.exports = { tick, CROSSFADE_SECS };
     }

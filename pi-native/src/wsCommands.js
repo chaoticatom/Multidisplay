@@ -57,6 +57,7 @@ const COMMANDS = {
   },
 
   applyScene(ws, msg) {
+    this._changeReason = 'Scene' + (msg.name ? ': ' + msg.name : '');
     const scene = (this.state.scenes || []).find((sc) => sc.name === msg.name);
     if (!scene || !EFFECTS[scene.effect]) return;
     if (this.state.effect === 'video' && scene.effect !== 'video') COMMANDS.stopVideoSource.call(this, ws, {});
@@ -917,6 +918,13 @@ const COMMANDS = {
   setLook(ws, msg) {
     const p = this.state.prefs || prefs.load();
     this.state.prefs = prefs.save({ ...p, look: { ...p.look, ...msg, cmd: undefined } });
+    this._broadcast(this._stateMsg());
+  },
+  // Setup > Display > Look > Bottom face: {bottom: 'effect'|'off'|'top'}.
+  setBottomFace(ws, msg) {
+    if (!['effect', 'off', 'top'].includes(msg.bottom)) return;
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, bottom: msg.bottom });
     this._broadcast(this._stateMsg());
   },
   // Setup > Display > Look > Detail: {quality: 'auto'|'smooth'|'detailed'}.

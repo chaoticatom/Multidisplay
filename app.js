@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.420';
+const APP_VERSION = '0.6.421';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -291,6 +291,7 @@ function handleTextMessage(msg) {
     syncDicePanel();
     syncCoinflipPanel();
     syncFireworksPanel();
+    syncLastChange();
     syncLightningPanel();
     syncRetroPanel();
     syncVideoPanel();
@@ -5615,6 +5616,7 @@ function cxSyncFavs() {
   document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.classList.toggle('on', b.dataset.q === (currentState.prefs?.quality || 'auto')));
+  document.querySelectorAll('#bottom-chips button').forEach((b) => b.classList.toggle('on', b.dataset.b === (currentState.prefs?.bottom || 'effect')));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -5643,6 +5645,7 @@ function cxWirePrefs() {
   document.querySelectorAll('#tr-style button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', style: b.dataset.tr })));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
   document.querySelectorAll('#quality-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setQuality', quality: b.dataset.q })));
+  document.querySelectorAll('#bottom-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setBottomFace', bottom: b.dataset.b })));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);
@@ -6466,4 +6469,15 @@ function cxSyncDj() {
     list.replaceChildren(...d.music.map((n) => { const r = document.createElement('div'); r.className = 'dj-file'; const ic = document.createElement('span'); ic.textContent = '♪'; ic.className = 'dj-file-ic'; const t = document.createElement('span'); t.className = 'dj-file-name'; t.textContent = n.replace(/\.[a-z0-9]+$/i, '').replace(/[_-]+/g, ' '); t.title = n; const x = document.createElement('button'); x.type = 'button'; x.className = 'dj-del'; x.setAttribute('aria-label', 'Remove ' + n); x.dataset.djdel = n; x.textContent = '✕'; r.append(ic, t, x); return r; }));
     document.getElementById('dj-music-sum').textContent = `🎵 My music · ${d.music.length}`;
   }
+}
+
+// "Changed to Dice Roll by Day plan at 14:05": what switched the effect last.
+function syncLastChange() {
+  const el = document.getElementById('last-change'), lc = currentState.lastChange;
+  if (!el) return;
+  if (!lc || lc.by === 'You' || lc.effect !== currentState.effect) { el.hidden = true; return; }
+  const d = new Date(lc.at), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  const name = effectNames[lc.effect] || lc.effect;
+  el.textContent = '↻ Changed to ' + name + ' by ' + lc.by + ' at ' + hm;
+  el.hidden = false;
 }

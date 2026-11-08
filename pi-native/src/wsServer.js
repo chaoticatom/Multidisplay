@@ -150,7 +150,7 @@ class WsServer {
         } else if (!first && mode === 'effects') {
           const LIST = ['radio', 'plasma', 'aurora', 'nebula', 'lava_lamp', 'starfield', 'warp', 'fluid_ink', 'prism', 'neon_rain'].filter((k) => require('./effects').EFFECT_NAMES[k]);
           const nextFx = LIST[(LIST.indexOf(this.state.effect) + 1 + Math.floor(Math.random() * (LIST.length - 1))) % LIST.length];
-          if (nextFx) { this.state.effect = nextFx; this.state.blank = false; this._broadcast(this._stateMsg()); }
+          if (nextFx) { this._changeReason = 'Auto-DJ light show'; this.state.effect = nextFx; this.state.blank = false; this._broadcast(this._stateMsg()); }
         }
       }
     }, 1000).unref();
@@ -456,8 +456,9 @@ class WsServer {
     // The Pi's view of the time, shown under Timers so a wrong clock or zone is easy to spot.
     const clock = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
     if (st.clock !== clock) { st.clock = clock; st.tz = p.tz || 'Pi clock'; this._broadcast(this._stateMsg()); }
-    const show = (effect) => {
+    const show = (effect, why) => {
       if (!EFFECTS[effect] || this.state.effect === effect) return false;
+      this._changeReason = why;
       this.state.effect = effect; this.state.blank = false; this._playlistSince = Date.now();
       return true;
     };
@@ -468,7 +469,7 @@ class WsServer {
       if (Date.now() >= party.endsAt) {
         const b = this._beforeParty || {}; this.state.party = null; this._beforeParty = null;
         if (this.state.effectOptions.fireworks) this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...this.state.effectOptions.fireworks, partySfx: false } };
-        if (b.effect) show(b.effect); this.state.blank = !!b.blank; if (b.musicReact) this.state.musicReact = b.musicReact;
+        if (b.effect) show(b.effect, 'End of party'); this.state.blank = !!b.blank; if (b.musicReact) this.state.musicReact = b.musicReact;
         this._broadcast(this._stateMsg());
         return;
       }
@@ -478,7 +479,7 @@ class WsServer {
         const next = party.step % 2 === 0 ? 'fireworks' : lively[(party.step >> 1) % lively.length];
         if (next === 'fireworks') this.state.effectOptions = { ...this.state.effectOptions, fireworks: { ...(this.state.effectOptions.fireworks || {}), textOn: !!party.text, text: party.text, finaleToken: Date.now(), partySfx: true } };
         this.state.musicReact = { ...(this.state.musicReact || {}), on: true, amount: Math.max(0.7, (this.state.musicReact && this.state.musicReact.amount) || 0) };
-        show(next); this.state.blank = false;
+        show(next, 'Party mode'); this.state.blank = false;
         this._broadcast(this._stateMsg());
       }
       return;
@@ -490,7 +491,7 @@ class WsServer {
       this._beforeCelebration = { effect: this.state.effect, blank: !!this.state.blank };
       const fw = { ...(this.state.effectOptions.fireworks || {}), textOn: !!cel.text, text: cel.text, finaleToken: Date.now() };
       this.state.effectOptions = { ...this.state.effectOptions, fireworks: fw };
-      show('fireworks'); this.state.blank = false;
+      show('fireworks', 'Celebration'); this.state.blank = false;
       st.celebration = cel.text || 'Fireworks';
       this._broadcast(this._stateMsg());
       return;
@@ -498,7 +499,7 @@ class WsServer {
     if (cel) return; // keep the celebration on screen
     if (this._beforeCelebration) {
       const b = this._beforeCelebration; this._beforeCelebration = null; st.celebration = '';
-      if (this.state.effect === 'fireworks') { show(b.effect); this.state.blank = b.blank; this._broadcast(this._stateMsg()); }
+      if (this.state.effect === 'fireworks') { show(b.effect, 'End of celebration'); this.state.blank = b.blank; this._broadcast(this._stateMsg()); }
       return;
     }
     if (this.state.blank) return;
@@ -516,7 +517,7 @@ class WsServer {
       // by hand stays until the weather turns (it used to be forced back
       // every 5 s - a real report: the spectrum switched itself off).
       const wxEffect = this._wx ? autoShow.effectForWeather(this._wx.code, !this._wx.isDay) : null;
-      if (wxEffect && wxEffect !== this._wxShown) { this._wxShown = wxEffect; if (show(wxEffect)) this._broadcast(this._stateMsg()); }
+      if (wxEffect && wxEffect !== this._wxShown) { this._wxShown = wxEffect; if (show(wxEffect, 'Match the weather')) this._broadcast(this._stateMsg()); }
       return;
     }
     this._wxShown = null;
@@ -535,16 +536,24 @@ class WsServer {
       if (own.length) list = own;
       // A new part of the day starts on its own effects; within it, an effect
       // picked by hand stays (the playlist moves on after its usual minutes).
-      if (partChanged && own.length && !own.includes(this.state.effect)) { if (show(own[0])) this._broadcast(this._stateMsg()); return; }
+      if (partChanged && own.length && !own.includes(this.state.effect)) { if (show(own[0], 'Day plan')) this._broadcast(this._stateMsg()); return; }
     } else st.part = '';
     if (!p.playlist || !p.playlist.on) return;
     const favs = list.filter((k) => EFFECTS[k]);
     if (favs.length < 2 || Date.now() - this._playlistSince < p.playlist.minutes * 60000) return;
-    if (show(favs[(favs.indexOf(this.state.effect) + 1) % favs.length])) this._broadcast(this._stateMsg());
+    if (show(favs[(favs.indexOf(this.state.effect) + 1) % favs.length], p.dayPlan && p.dayPlan.on ? 'Day plan' : 'Cycle ★ favourites')) this._broadcast(this._stateMsg());
   }
 
   _stateMsg() {
+    // What changed the effect last (shown on the Play page): whoever set
+    // _changeReason just before the change, else 'You'.
+    if (this.state.effect !== this._shownEffect) {
+      if (this._shownEffect !== undefined) this.state.lastChange = { effect: this.state.effect, by: this._changeReason || 'You', at: Date.now() };
+      this._shownEffect = this.state.effect;
+    }
+    this._changeReason = null;
     return {
+      lastChange: this.state.lastChange || null,
       cmd: 'state',
       effect: this.state.effect, brightness: this.state.brightness, speed: this.state.speed,
       controlPinSet: pinConfig.isPinSet(this.pinCfg),
@@ -707,6 +716,7 @@ class WsServer {
     const handler = Object.prototype.hasOwnProperty.call(COMMANDS, msg.cmd) ? COMMANDS[msg.cmd] : null;
     if (!handler) return;
     this.stateVersion = (this.stateVersion || 0) + 1;
+    if (!this._changeReason) this._changeReason = 'Alexa'; // runCommand is how Alexa drives the display
     handler.call(this, ws, msg);
     this._broadcast(this._stateMsg());
   }

@@ -419,7 +419,7 @@ async function main() {
       playSfx(state, msg.sfx);
       // A timer fired on the render thread and changed what's displayed:
       // adopt it here too, or the next state hand-off would revert it.
-      if (msg.applied) { Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
+      if (msg.applied) { if (msg.applied.effect) ws._changeReason = 'Timer'; Object.assign(state, msg.applied); if (msg.alarms) { state.alarms = msg.alarms; state.activeAlarm = msg.activeAlarm; alarmConfig.save(state.alarms); } ws._broadcast(ws._stateMsg()); }
       routeTimerAudio(msg.activeAlarm);
       radioSeen = applyRemoteRequest(radio.audio, msg.radioAudio, radioSeen);
       ws.maybeStreamFrame(core, Number.isFinite(msg.brightness) ? msg.brightness : state.brightness); // the worker's brightness, so a sunrise brightens the preview too

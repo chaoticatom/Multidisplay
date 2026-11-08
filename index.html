@@ -1409,6 +1409,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
         <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
         <button type="button" id="note-open" class="ui-btn-primary" style="flex:1;margin:0;">💌 Message</button>
       </div>
+      <div id="last-change" class="ui-note" hidden style="margin:0 0 8px;"></div>
       <div id="recent-row" class="cx-chips" hidden style="margin:0 0 10px;" aria-label="Recent effects"></div>
       <div class="cx-ask"><span class="cx-spark"></span><button type="button" id="cx-mic" class="cx-mic" aria-label="Speak">🎤</button><input id="cx-ask" type="text" placeholder="Ask: “calm”, “party”, “night sky”…" aria-label="Ask for an effect" autocomplete="off"></div>
       <div id="cx-ask-chips" class="cx-chips"><button type="button">calm</button><button type="button">party</button><button type="button">night sky</button><button type="button">surprise me</button></div>
@@ -1515,6 +1516,8 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
     <div class="sub-section collapsed">
     <button class="sub-head">Physics &amp; Simulation <span class="chev">▾</span></button>
     <div class="sub-body">
+    <button class="effect-btn" data-effect="rubiks">◈ Rubik's Cube</button>
+    <button class="effect-btn" data-effect="aquarium">◈ Aquarium</button>
     <button class="effect-btn has-panel" data-effect="balls">◈ Bouncing Balls <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-balls">
       <div class="ov-row-label">Mode</div>
@@ -2657,6 +2660,8 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
       <div class="tm-chips" id="tr-secs" style="margin-top:6px;"><button type="button" data-secs="1">Quick</button><button type="button" data-secs="2.5" class="on">Medium</button><button type="button" data-secs="4">Slow</button></div>
       <div class="ui-label-accent" style="margin-top:10px;">⚡ Detail</div>
       <div class="tm-chips" id="quality-chips"><button type="button" data-q="auto" class="on" title="Full detail, easing off on effects the Pi can't draw in time">Auto</button><button type="button" data-q="smooth" title="Colour effects always at a quarter of the work: smoothest motion">Smooth</button><button type="button" data-q="detailed" title="Every pixel, every frame, even if it slows down">Detailed</button></div>
+      <div class="cube-only"><div class="ui-label-accent" style="margin-top:10px;">⬇ Cube bottom face</div>
+      <div class="tm-chips" id="bottom-chips"><button type="button" data-b="effect" class="on" title="Whatever the effect draws there">As the effect</button><button type="button" data-b="off" title="Dark: it sits on a table (cooler, less power)">Off</button><button type="button" data-b="top" title="A copy of the top, for a hanging cube">Copy the top</button></div></div>
       </div><div class="dgroup" data-dgroup="look" hidden>
       <div class="ui-label-accent" style="margin-top:10px;">✨ Next-gen look</div>
       <div class="cx-row"><span>Glow, richer colour and smoothing on every effect</span><button class="cx-switch" id="look-sw" aria-label="Next-gen look on/off"></button></div>

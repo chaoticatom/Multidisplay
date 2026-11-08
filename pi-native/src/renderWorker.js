@@ -20,16 +20,7 @@
 
 const { parentPort, workerData } = require('worker_threads');
 const { CubeCore } = require('./core');
-const prefs = require('./prefs');
-const { EFFECTS, WALL_EFFECTS } = require('./effects');
-const { runOverlays } = require('./effects/overlays');
-const alarms = require('./effects/alarms');
-let workerVersion = null;
-const { tick } = require('./tick');
 const { loadDriver } = require('./loadDriver');
-const radio = require('./effects/radio');
-const remoteAudio = radio.useRemoteAudio(); // real decode/FFT runs on the main thread - see ffmpegAudio.js's RemoteAudio
-const { browserFrameSource } = require('./effects/video/browserFrameSource');
 
 let config = workerData.config;
 const core = new CubeCore(config.size);
@@ -42,16 +33,29 @@ const driverKind = process.env.DRIVER || 'mock';
 // rather than shared, since it's 15 lines and pulling app.js's version in
 // would mean requiring app.js itself (which immediately runs main() at
 // module scope) into this worker, which is not what we want.
-const BOOT_COLOR = [0.35, 0.18, 0.0];
-for (let i = 0; i < core.colBuf.length; i += 3) {
-  core.colBuf[i] = BOOT_COLOR[0]; core.colBuf[i + 1] = BOOT_COLOR[1]; core.colBuf[i + 2] = BOOT_COLOR[2];
-}
-if (core.wallBuf) {
-  for (let i = 0; i < core.wallBuf.length; i += 3) {
-    core.wallBuf[i] = BOOT_COLOR[0]; core.wallBuf[i + 1] = BOOT_COLOR[1]; core.wallBuf[i + 2] = BOOT_COLOR[2];
+// LOADING on every panel, drawn before the effects are loaded (they take a
+// few seconds on a Pi), so the start-up shows a word, not a flood of colour.
+{
+  const { drawLinesCentered, FONT_5x7, facePlot, wallPlot } = require('./effects/text');
+  const AMBER = [1, 0.55, 0.05];
+  if (core.wallBuf) {
+    core.wallBuf.fill(0);
+    const S = core.wallPanelSize;
+    for (const p of core.wallPanels) drawLinesCentered(FONT_5x7, ['LOADING'], S, S, wallPlot(core, ...AMBER), { ox: p.gx * S, oy: p.gy * S });
   }
+  core.colBuf.fill(0);
+  for (let f = 0; f < 6; f++) drawLinesCentered(FONT_5x7, ['LOADING'], core.SIZE, core.SIZE, (x, y, a) => facePlot(core, f, ...AMBER)(x, core.SIZE - 1 - y, a));
+  driver.renderFrame(core, 0.6);
 }
-driver.renderFrame(core, 1.0);
+const prefs = require('./prefs');
+const { EFFECTS, WALL_EFFECTS } = require('./effects');
+const { runOverlays } = require('./effects/overlays');
+const alarms = require('./effects/alarms');
+let workerVersion = null;
+const { tick } = require('./tick');
+const radio = require('./effects/radio');
+const remoteAudio = radio.useRemoteAudio(); // real decode/FFT runs on the main thread - see ffmpegAudio.js's RemoteAudio
+const { browserFrameSource } = require('./effects/video/browserFrameSource');
 
 let workerState = null;
 const shared = { col: null, wall: null };

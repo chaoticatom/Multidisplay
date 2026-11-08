@@ -128,6 +128,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     if (xfLive) core._xfNew.set(buf);
     pulseBuffer(core.audio, buf, react);
     applyCrossfade(core, buf, dt, state.prefs && state.prefs.transition);
+    if (cubeMode) bottomFace(core, state.prefs && state.prefs.bottom);
     // Planes overhead alert, over any effect (Planes option).
     try { require('./effects/planes').alert(core, config.mode, state, dt); } catch (e) { /* never break the frame */ }
     // Auto-DJ light show: a white flash on each drop, as it's heard.
@@ -154,6 +155,18 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
     alarms.renderPrePhase(core, dt, state, WALL_EFFECTS, true);
   }
   renderNotice(core, state, config.mode, dt); // a /api/notify banner sits on top of everything
+}
+
+// Setup > Display > Look > Bottom face: 'effect' (as drawn), 'off' (dark -
+// it usually sits on a table) or 'top' (a copy of the top, for a hanging cube).
+function bottomFace(core, mode) {
+  if (mode !== 'off' && mode !== 'top') return;
+  const S = core.SIZE, bot = core.faceMap[5], top = core.faceMap[4], cb = core.colBuf;
+  for (let k = 0; k < S * S; k++) {
+    const i = bot[k]; if (i < 0) continue;
+    const o = i * 3, j = mode === 'top' ? top[k] : -1;
+    if (j < 0) { cb[o] = 0; cb[o + 1] = 0; cb[o + 2] = 0; } else { cb[o] = cb[j * 3]; cb[o + 1] = cb[j * 3 + 1]; cb[o + 2] = cb[j * 3 + 2]; }
+  }
 }
 
 module.exports = { tick, CROSSFADE_SECS };

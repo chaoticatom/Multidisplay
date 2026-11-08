@@ -58,6 +58,8 @@ const fluid = require('./rippleTank'); // Liquid Crystal
 const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
+const rubiks = require('./rubiks'); // Rubik's Cube
+const aquarium = require('./aquarium'); // Aquarium
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
 const { withTop, clockTop, moonTop, recordTop } = require('./cubeTops'); // cube top pictures for text/info effects
 const ghost = require('./ghostFace'); // Ghost Face
@@ -134,6 +136,8 @@ const WALL_EFFECTS = {
   starfield: starfield.wall,
   fluid_ink: fluidInk.wall,
   lava_lamp: lavaLamp.wall,
+  rubiks: rubiks.wall,
+  aquarium: aquarium.wall,
   ai_art: aiArt.wall,
   gradient_wash: gradientWashWall,
   video: videoWall,
@@ -198,6 +202,8 @@ const EFFECTS = {
   starfield: starfield,
   fluid_ink: fluidInk,
   lava_lamp: lavaLamp,
+  rubiks,
+  aquarium,
   ai_art: aiArt,
   wave,
   gradient_wash: gradientWash,
@@ -269,6 +275,8 @@ const EFFECT_NAMES = {
   starfield: 'Starfield',
   fluid_ink: 'Fluid Ink',
   lava_lamp: 'Lava Lamp',
+  rubiks: "Rubik's Cube",
+  aquarium: 'Aquarium',
   ai_art: 'AI Art',
   wave: 'Colour Falls',
   gradient_wash: 'Rainbow Wash',
@@ -290,7 +298,7 @@ const EFFECT_NAMES = {
   tron: 'Tron Bikes',
   coinflip: 'Coin Flip',
   dice: 'Dice Roll',
-  random: 'Random 1',
+  random: 'Random Chaos',
   random80s: 'Random 80s',
   fireworks: 'Fireworks',
   retro: 'Retro',
