@@ -101,8 +101,9 @@ async function run() {
         ws.send(JSON.stringify({ cmd: 'setEffectOption', effect: 'weather', key: 'city', value: 'Tokyo, Japan' }));
         const msg = await nextMessage(ws);
         assert.strictEqual(msg.effectOptions.weather.city, 'Tokyo, Japan');
-        const raw = JSON.parse(fs.readFileSync(weatherConfig.CONFIG_PATH, 'utf8'));
-        assert.deepStrictEqual(raw, { city: 'Tokyo, Japan' });
+        // Saved in settings.json's weather section now (CONFIG_PATH is only the
+        // legacy file, imported once): read it back the way the app does.
+        assert.strictEqual(weatherConfig.load().city, 'Tokyo, Japan');
       });
     });
   });

@@ -919,6 +919,13 @@ const COMMANDS = {
     this.state.prefs = prefs.save({ ...p, look: { ...p.look, ...msg, cmd: undefined } });
     this._broadcast(this._stateMsg());
   },
+  // Setup > Display > Look > Detail: {quality: 'auto'|'smooth'|'detailed'}.
+  setQuality(ws, msg) {
+    if (!['auto', 'smooth', 'detailed'].includes(msg.quality)) return;
+    const p = this.state.prefs || prefs.load();
+    this.state.prefs = prefs.save({ ...p, quality: msg.quality });
+    this._broadcast(this._stateMsg());
+  },
   // How effects change over (effects/transition.js): {style, secs}.
   setTransition(ws, msg) {
     const p = this.state.prefs || prefs.load();

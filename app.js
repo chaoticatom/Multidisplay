@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.6.418';
+const APP_VERSION = '0.6.419';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5614,6 +5614,7 @@ function cxSyncFavs() {
   const tr = currentState.prefs?.transition || { style: 'seamless', secs: 2.5 };
   document.querySelectorAll('#tr-style button').forEach((b) => b.classList.toggle('on', b.dataset.tr === tr.style));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.classList.toggle('on', Math.abs(Number(b.dataset.secs) - tr.secs) < 0.05));
+  document.querySelectorAll('#quality-chips button').forEach((b) => b.classList.toggle('on', b.dataset.q === (currentState.prefs?.quality || 'auto')));
   const look = currentState.prefs?.look, lsw = document.getElementById('look-sw');
   if (look && lsw) {
     lsw.classList.toggle('on', look.on !== false);
@@ -5641,6 +5642,7 @@ function cxWirePrefs() {
   // Transition between effects (src/effects/transition.js).
   document.querySelectorAll('#tr-style button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', style: b.dataset.tr })));
   document.querySelectorAll('#tr-secs button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', secs: Number(b.dataset.secs) })));
+  document.querySelectorAll('#quality-chips button').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setQuality', quality: b.dataset.q })));
   document.getElementById('look-sw')?.addEventListener('click', () => send({ cmd: 'setLook', on: currentState.prefs?.look?.on === false }));
   for (const k of ['bloom', 'vibrance', 'smooth', 'depth']) {
     const el = document.getElementById('look-' + k);

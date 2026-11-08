@@ -64,7 +64,7 @@ const results = {};
 
 async function run(label, core, fn, opts, panelMode, ticks = 45) {
   seed = 12345; fakeNow = T0; timerQ = [];
-  core.panelMode = panelMode; core.effectOptions = opts; core.t = 0; core.speedMult = 1;
+  core.panelMode = panelMode; core.effectOptions = opts; core.t = 0; core.speedMult = 1; core.quality = 'detailed'; // Auto detail depends on how fast this machine is
   const buf = panelMode === 'wall' ? core.wallBuf : core.colBuf;
   const hashes = [];
   for (let i = 0; i < ticks; i++) {

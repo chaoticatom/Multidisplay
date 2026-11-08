@@ -250,13 +250,29 @@ var PiEngine = (() => {
           return out;
         }
         const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
+        const BUDGET_MS = 6;
+        let fullMs = 0;
+        const lowRes = (core) => {
+          if (smooth) return true;
+          const q = core.quality || "auto";
+          return q === "smooth" || q === "auto" && fullMs > BUDGET_MS;
+        };
+        const timed = (core, low, t0) => {
+          const ms = performance.now() - t0, est = low && !smooth ? ms * 3 : ms;
+          fullMs = fullMs ? fullMs + (est - fullMs) * 0.1 : est;
+        };
         function cube(core, dt) {
+          const low = lowRes(core), t0 = performance.now();
+          cubeDraw(core, dt, low);
+          timed(core, low, t0);
+        }
+        function cubeDraw(core, dt, low) {
           core.t += dt * speed * tempoField(core);
           const { N, surfX, surfY, surfZ } = core;
           Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
           p.flat = false;
           if (frame) frame(ctx);
-          if (!smooth) {
+          if (!low) {
             for (let i = 0; i < N; i++) {
               p.x = surfX[i];
               p.y = surfY[i];
@@ -305,13 +321,18 @@ var PiEngine = (() => {
           }
         }
         function wall(core, dt) {
+          const low = lowRes(core), t0 = performance.now();
+          wallDraw(core, dt, low);
+          timed(core, low, t0);
+        }
+        function wallDraw(core, dt, low) {
           core.t += dt * speed * tempoField(core);
           const { wallW, wallH } = core;
           if (!wallW) return;
           Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });
           p.flat = true;
           if (frame) frame(ctx);
-          if (!smooth) {
+          if (!low) {
             for (let yy = 0; yy < wallH; yy++) {
               const y = yy / wallH;
               for (let xx = 0; xx < wallW; xx++) {
@@ -4936,6 +4957,8 @@ var PiEngine = (() => {
         look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: "auto" },
         transition: { style: "seamless", secs: 2.5, v3: true },
         // between effects - see effects/transition.js
+        quality: "auto",
+        // colour effects: 'auto' (eases off when the Pi is slow), 'smooth' (always fast) or 'detailed' - see effects/surface.js
         // Automatic show (see src/autoShow.js).
         dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } },
         // brightness null = leave as it is
@@ -4979,6 +5002,7 @@ var PiEngine = (() => {
           const l = Number(p.nightDim.level);
           if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
         }
+        if (p && ["auto", "smooth", "detailed"].includes(p.quality)) out.quality = p.quality;
         if (p && p.transition) {
           if (require_transition().STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
           const secs = Number(p.transition.secs);
@@ -33119,6 +33143,7 @@ var PiEngine = (() => {
         core.panelMode = config.mode;
         core.effectOptions = state.effectOptions;
         core.faceTalk = state.faceTalk;
+        core.quality = state.prefs && state.prefs.quality || "auto";
         core.tz = state.prefs && state.prefs.tz;
         core.customCubeFaces = state.customCube && state.customCube.faces;
         core.overlaysState = state.overlays;

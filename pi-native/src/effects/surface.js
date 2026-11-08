@@ -48,14 +48,28 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
     return out;
   }
   const ctx = { t: 0, dt: 0, count: 0, flat: false, core: null };
+  // Detail (prefs.quality): 'detailed' always draws every pixel; 'smooth'
+  // always samples a quarter and blends; 'auto' times itself and drops to
+  // sampling when a full frame would take more than BUDGET_MS on this Pi
+  // (a frame at 60 fps is 16.7 ms, shared with everything else), going back
+  // to full detail once it's comfortably quick again.
+  const BUDGET_MS = 6;
+  let fullMs = 0;
+  const lowRes = (core) => {
+    if (smooth) return true;
+    const q = core.quality || 'auto';
+    return q === 'smooth' || (q === 'auto' && fullMs > BUDGET_MS);
+  };
+  const timed = (core, low, t0) => { const ms = performance.now() - t0, est = low && !smooth ? ms * 3 : ms; fullMs = fullMs ? fullMs + (est - fullMs) * 0.1 : est; };
 
-  function cube(core, dt) {
+  function cube(core, dt) { const low = lowRes(core), t0 = performance.now(); cubeDraw(core, dt, low); timed(core, low, t0); }
+  function cubeDraw(core, dt, low) {
     core.t += dt * speed * tempoField(core);
     const { N, surfX, surfY, surfZ } = core;
     Object.assign(ctx, { t: core.t, dt, count: N, flat: false, core });
     p.flat = false;
     if (frame) frame(ctx);
-    if (!smooth) {
+    if (!low) {
       for (let i = 0; i < N; i++) {
         p.x = surfX[i]; p.y = surfY[i]; p.z = surfZ[i]; p.i = i;
         const c = detail ? detail(p, ctx, pixel(p, ctx)) : pixel(p, ctx);
@@ -87,14 +101,15 @@ function defineFieldEffect({ speed = 1, frame, pixel, smooth = false, detail = n
     }
   }
 
-  function wall(core, dt) {
+  function wall(core, dt) { const low = lowRes(core), t0 = performance.now(); wallDraw(core, dt, low); timed(core, low, t0); }
+  function wallDraw(core, dt, low) {
     core.t += dt * speed * tempoField(core);
     const { wallW, wallH } = core;
     if (!wallW) return; // core.initWall() hasn't run yet (wall mode not active)
     Object.assign(ctx, { t: core.t, dt, count: wallW * wallH, flat: true, core });
     p.flat = true;
     if (frame) frame(ctx);
-    if (!smooth) {
+    if (!low) {
       for (let yy = 0; yy < wallH; yy++) {
         const y = yy / wallH;
         for (let xx = 0; xx < wallW; xx++) {

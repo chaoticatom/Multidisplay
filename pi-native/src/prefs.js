@@ -11,6 +11,7 @@ const DEFAULT = {
   nightDim: { on: false, from: 22, to: 7, level: 0.3 },
   look: { on: true, bloom: 0.65, vibrance: 0.35, smooth: 0, depth: 0.5, palette: 'auto' },
   transition: { style: 'seamless', secs: 2.5, v3: true }, // between effects - see effects/transition.js
+  quality: 'auto', // colour effects: 'auto' (eases off when the Pi is slow), 'smooth' (always fast) or 'detailed' - see effects/surface.js
   // Automatic show (see src/autoShow.js).
   dayPlan: { on: false, starts: { morning: 6, day: 10, evening: 18, night: 23 }, effects: { morning: [], day: [], evening: [], night: [] }, brightness: { morning: null, day: null, evening: null, night: null } }, // brightness null = leave as it is
   weatherMode: { on: false },
@@ -46,6 +47,7 @@ function clean(p) {
     const l = Number(p.nightDim.level);
     if (Number.isFinite(l)) out.nightDim.level = Math.max(0.05, Math.min(1, l));
   }
+  if (p && ['auto', 'smooth', 'detailed'].includes(p.quality)) out.quality = p.quality;
   if (p && p.transition) {
     if (require('./effects/transition').STYLES.includes(p.transition.style)) out.transition.style = p.transition.style;
     const secs = Number(p.transition.secs); if (Number.isFinite(secs)) out.transition.secs = Math.max(0.2, Math.min(5, secs));

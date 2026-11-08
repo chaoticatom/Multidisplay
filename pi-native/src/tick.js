@@ -68,6 +68,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   core.panelMode = config.mode;
   core.effectOptions = state.effectOptions;
   core.faceTalk = state.faceTalk; // what the Talking Face is saying (src/faceTalk.js)
+  core.quality = (state.prefs && state.prefs.quality) || 'auto'; // colour-effect detail (effects/surface.js)
   core.tz = state.prefs && state.prefs.tz; // the user's time zone, for effects that show a time (see localTime.js)
   core.customCubeFaces = state.customCube && state.customCube.faces;
   core.overlaysState = state.overlays;
