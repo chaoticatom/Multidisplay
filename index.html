@@ -1533,6 +1533,41 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-q b { width: 18px; color: #6B7487; font-weight: 600; }
 .mx-q span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mx-q.next { border-color: #FF9EC4; } .mx-q.next b { color: #FF9EC4; }
+
+/* ── Menus v2: timer cards ── */
+#sidebar .cx-timer { padding: 14px 12px 14px 16px; border-radius: 18px; background: #0F141D; box-shadow: none; border: 1px solid #1F2633; }
+#sidebar .cx-timer.on { border-color: #2E4A5A; box-shadow: none; opacity: 1; }
+#sidebar .cx-timer-main b { font: 600 30px 'Space Grotesk', Inter, sans-serif; letter-spacing: -0.5px; color: #E8ECF4; }
+#sidebar .cx-timer:not(.on) .cx-timer-main b { color: #6B7487; }
+#sidebar .cx-timer-main small { display: none; }
+.tm-dots { display: flex; gap: 4px; margin-top: 6px; font-style: normal; }
+.tm-dots span { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 600 10px Inter, sans-serif; color: #6B7487; background: #161C27; }
+.tm-dots span.on { background: #7FE6FF; color: #0A0C11; }
+#sidebar .tm-test { width: 40px; height: 40px; border-radius: 12px; border: 1px solid #2A3242; background: #141A25; color: #7FE6FF; display: grid; place-items: center; padding: 0; cursor: pointer; }
+/* ── Menus v2: the day strip, draggable ── */
+.day-bar .day-edge { position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px; cursor: ew-resize; z-index: 2; touch-action: none; }
+.day-bar .day-edge::after { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: rgba(255,255,255,0.55); }
+.day-bar .day-edge:hover::after, .day-bar .day-edge.drag::after { background: #fff; }
+.day-tip { position: absolute; top: -24px; transform: translateX(-50%); font: 600 11px Inter, sans-serif; color: #0A0C11; background: #E8ECF4; padding: 2px 6px; border-radius: 6px; pointer-events: none; }
+
+/* ── Menus v2: the effects grid ── */
+#effects-body .sub-section:not(.collapsed) > .sub-body, #effects-body.chips-all .sub-section > .sub-body { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; }
+#sidebar #effects-body .effect-btn.cx-tile { position: relative; display: flex; flex-direction: column; padding: 0 !important; min-height: 0; }
+#sidebar #effects-body .cx-tile .cx-thumb { width: 100%; height: auto; aspect-ratio: 4 / 3; display: block; object-fit: cover; image-rendering: pixelated; }
+#sidebar #effects-body .cx-tile .cx-tile-name { padding: 6px 8px; font-size: 11.5px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#sidebar #effects-body .effect-btn.cx-tile.active::after { content: 'PLAYING'; position: absolute; top: 6px; left: 6px; font: 700 9px Inter, sans-serif; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 6px; background: #7FE6FF; color: #0A0C11; }
+#sidebar #effects-body .sub-head { margin-top: 8px; }
+/* ── Menus v2: Setup pages ── */
+#sidebar .dgroups { gap: 4px; padding: 4px; border-radius: 14px; background: #11161F; border: 1px solid #1F2633; }
+#sidebar .dgroups button { flex: 1 1 0; border-radius: 10px; padding: 8px 6px; background: none; color: #8892A6; font-weight: 500; }
+#sidebar .dgroups button.on { background: #1E2633; color: #E8ECF4; font-weight: 600; box-shadow: inset 0 0 0 1px #2E3748; }
+#sidebar .cx-row { margin: 0; padding: 12px 14px; background: #0F141D; border: 1px solid #1F2633; border-radius: 0; font-size: 14px; color: #E8ECF4; }
+#sidebar .cx-row + .cx-row { border-top: 0; }
+#sidebar .dgroup > .cx-row:first-of-type, #sidebar .section-body > .cx-row:first-of-type { border-radius: 14px 14px 0 0; }
+#sidebar .dgroup > .cx-row:last-of-type, #sidebar .section-body > .cx-row:last-of-type { border-radius: 0 0 14px 14px; margin-bottom: 10px; }
+#sidebar .dgroup > .cx-row:only-of-type { border-radius: 14px; }
+#sidebar .slider-row { padding: 6px 0; }
+#sidebar .ui-label-accent { margin-top: 16px !important; margin-bottom: 8px; }
 </style>
 </head>
 <body>

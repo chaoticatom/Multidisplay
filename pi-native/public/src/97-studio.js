@@ -291,7 +291,7 @@ function wireEffectsV2() {
 }
 const DAY_PARTS = [['night', '#2B2245', '#C9B8FF'], ['morning', '#4A3A20', '#FFD9A0'], ['day', '#123A4A', '#A6EEFF'], ['evening', '#3A1F3A', '#FFB8E6']];
 function syncDayV2() {
-  const box = document.getElementById('day-strip'); if (!box) return;
+  const box = document.getElementById('day-strip'); if (!box || _dayDragging) return;
   const dp = currentState.prefs?.dayPlan, st = (dp && dp.starts) || { morning: 6, day: 10, evening: 18, night: 23 };
   box.classList.toggle('off', !(dp && dp.on));
   // Segments from midnight: night (to morning), morning, day, evening, night again.
@@ -300,6 +300,30 @@ function syncDayV2() {
   bar.replaceChildren(...seq.map(([part, a, b]) => { const c = DAY_PARTS.find((x) => x[0] === part); const d = document.createElement('div'); d.style.flex = String(b - a); d.style.background = c[1]; d.style.color = c[2]; d.title = part + ' ' + a + ':00 – ' + b + ':00'; if (b - a >= 3) d.textContent = part[0].toUpperCase() + part.slice(1); return d; }));
   const now = new Date(), h = now.getHours() + now.getMinutes() / 60, line = document.createElement('i'); line.className = 'day-now'; line.style.left = (h / 24 * 100) + '%';
   bar.append(line);
+  // Drag a border to change when that part of the day starts (whole hours).
+  for (const part of ['morning', 'day', 'evening', 'night']) {
+    const e = document.createElement('span'); e.className = 'day-edge'; e.style.left = (st[part] / 24 * 100) + '%';
+    e.title = 'Drag: ' + part + ' starts ' + st[part] + ':00'; e.setAttribute('aria-label', part + ' starts at ' + st[part] + ':00');
+    e.addEventListener('pointerdown', (ev) => dayDrag(ev, part, e, bar));
+    bar.append(e);
+  }
+}
+let _dayDragging = false;
+function dayDrag(ev, part, edge, bar) {
+  ev.preventDefault(); edge.setPointerCapture(ev.pointerId); _dayDragging = true; edge.classList.add('drag');
+  const dp = currentState.prefs?.dayPlan || {}, st = { morning: 6, day: 10, evening: 18, night: 23, ...(dp.starts || {}) };
+  const order = ['morning', 'day', 'evening', 'night'], i = order.indexOf(part);
+  const lo = i ? st[order[i - 1]] + 1 : 1, hi = i < 3 ? st[order[i + 1]] - 1 : 23;
+  const tip = document.createElement('span'); tip.className = 'day-tip'; bar.append(tip);
+  const at = (x) => { const r = bar.getBoundingClientRect(); return Math.max(lo, Math.min(hi, Math.round((x - r.left) / r.width * 24))); };
+  let hour = st[part];
+  const move = (e) => { hour = at(e.clientX); edge.style.left = tip.style.left = (hour / 24 * 100) + '%'; tip.textContent = String(hour).padStart(2, '0') + ':00'; };
+  move(ev);
+  edge.onpointermove = move;
+  edge.onpointerup = () => {
+    edge.onpointermove = edge.onpointerup = null; _dayDragging = false; tip.remove();
+    send({ cmd: 'setAutoShow', dayPlan: { ...dp, starts: { ...st, [part]: hour } } });
+  };
 }
 
 // ── Menus v2: Music. One player card on top: the Auto-DJ's track (or the
