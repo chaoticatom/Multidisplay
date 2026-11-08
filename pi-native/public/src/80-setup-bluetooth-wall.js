@@ -58,6 +58,7 @@ function toggleMenu() {
   // instead of staying sized for the old layout until the next unrelated
   // resize.
   setTimeout(resizeRenderer, 550);
+  if (typeof syncStudioPhone === 'function') syncStudioPhone();
 }
 // Ported verbatim (behavior, not code shape) from ui.js's wireForceUpdate()
 // - a real report ("GitHub still says 0.1.0" after a fresh deploy) traced

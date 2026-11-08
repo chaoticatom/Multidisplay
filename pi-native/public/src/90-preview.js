@@ -189,6 +189,9 @@ function fitCubeCamera() {
 // the space above it); the full window height when it's closed or on a
 // desktop layout.
 function sheetTopPx() {
+  // Phones with the sheet tucked away: keep the cube above the Now panel.
+  const now = document.getElementById('studio-mnow');
+  if (now && window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && !menuOpen && now.offsetParent) return now.getBoundingClientRect().top;
   const sb = document.getElementById('sidebar');
   const r = sb ? sb.getBoundingClientRect() : null;
   return r && r.width >= window.innerWidth * 0.9 && r.top > 0 && r.top < window.innerHeight - 4 ? r.top : window.innerHeight;

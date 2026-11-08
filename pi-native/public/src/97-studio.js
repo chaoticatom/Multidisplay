@@ -96,3 +96,61 @@ function studioNoteFrame(face, bytes) {
   }
   ctx.putImageData(_studioImg, cell[0] * (half + 2), cell[1] * (half + 2));
 }
+
+// ── Phone: the Remote (see the mock-up). Under 769px the page is the live
+// cube with a header (effect name, power), a Now panel (Ask, a swipeable row
+// of effect cards, brightness and speed, the music) and a bottom tab bar.
+// Now shows that panel; the other tabs open the menu sheet on their area.
+const isPhone = () => window.innerWidth <= 768;
+function studioPhoneTab(id) {
+  const r = STUDIO_RAIL.find((x) => x.id === id); if (!r) return;
+  if (id === 'now') { if (menuOpen) toggleMenu(); }
+  else { studioPickSub(r.tab, r.sub); if (!menuOpen) toggleMenu(); }
+  syncStudio();
+}
+function wireStudioPhone() {
+  const tabs = document.getElementById('studio-tabs'); if (!tabs) return;
+  tabs.innerHTML = STUDIO_RAIL.map((r) => `<button type="button" data-ptab="${r.id}">${svgIcon(r.icon, 22)}<span>${r.label}</span></button>`).join('');
+  tabs.querySelectorAll('[data-ptab]').forEach((b) => b.addEventListener('click', () => studioPhoneTab(b.dataset.ptab)));
+  const ask = document.getElementById('studio-mask');
+  ask?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { const t = ask.value.trim(); ask.value = ''; document.getElementById('cx-ask').value = t; cxSubmit(t); ask.blur(); } });
+  document.getElementById('studio-mpower')?.addEventListener('click', () => document.getElementById('clear-all-btn')?.click());
+  const br = document.getElementById('studio-mbright'), sp = document.getElementById('studio-mspeed');
+  br?.addEventListener('input', () => send({ cmd: 'setBrightness', value: Number(br.value) }));
+  sp?.addEventListener('input', () => send({ cmd: 'setSpeed', value: Number(sp.value) }));
+  document.getElementById('studio-mstop')?.addEventListener('click', () => { send({ cmd: 'radioStop' }); if (typeof radioBrowserStop === 'function') radioBrowserStop(); });
+  document.getElementById('studio-mall')?.addEventListener('click', () => studioPhoneTab('effects'));
+  // Start on Now: the cube and the Now panel, the sheet tucked away.
+  if (isPhone() && menuOpen) toggleMenu();
+}
+// The swipe deck: the playing effect, then favourites, then the rest.
+let _deckKey = '';
+function syncStudioPhone() {
+  const s = currentState, deck = document.getElementById('studio-deck');
+  document.querySelectorAll('#studio-tabs [data-ptab]').forEach((b) => {
+    const r = STUDIO_RAIL.find((x) => x.id === b.dataset.ptab), tab = document.body.dataset.tab || 'play';
+    let sub = ''; try { sub = JSON.parse(localStorage.getItem('subtab') || '{}')[tab] || ''; } catch (e) { /* storage unavailable */ }
+    const on = r.id === 'now' ? !menuOpen : menuOpen && r.tab === tab && (!r.sub || r.sub === sub);
+    b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false');
+  });
+  const nm = document.getElementById('studio-mname'); if (nm) nm.textContent = s.blank ? 'Display off' : (effectNames && effectNames[s.effect]) || s.effect || '';
+  const pw = document.getElementById('studio-mpower'); if (pw) pw.classList.toggle('off', !!s.blank);
+  const br = document.getElementById('studio-mbright'); if (br && document.activeElement !== br && Number.isFinite(s.brightness)) br.value = s.brightness;
+  const sp = document.getElementById('studio-mspeed'); if (sp && document.activeElement !== sp && Number.isFinite(s.speed)) sp.value = s.speed;
+  const t1 = document.getElementById('studio-track'), m1 = document.getElementById('studio-mtrack'), m2 = document.getElementById('studio-mtrack2');
+  if (m1 && t1) { m1.textContent = t1.textContent; m2.textContent = document.getElementById('studio-track2').textContent; }
+  if (!deck || !effectNames) return;
+  const all = Object.keys(effectNames).filter((k) => !['draw', 'custom_cube', 'cam'].includes(k));
+  const favs = (s.prefs?.favourites || []).filter((k) => effectNames[k]);
+  const order = [...new Set([s.effect, ...favs, ...all])].filter((k) => effectNames[k]).slice(0, 24);
+  const key = JSON.stringify([order, s.effect, !!_cxThumbData]);
+  if (key === _deckKey) return;
+  _deckKey = key;
+  deck.replaceChildren(...order.map((k) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'studio-card' + (k === s.effect ? ' on' : '');
+    const th = cxStillThumb(k); th.classList.add('studio-card-img');
+    const n = document.createElement('span'); n.textContent = effectNames[k];
+    b.append(th, n); b.addEventListener('click', () => send({ cmd: 'setEffect', effect: k }));
+    return b;
+  }));
+}
