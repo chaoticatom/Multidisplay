@@ -1446,6 +1446,70 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   #menu-toggle, #sidebar-open-btn, #sidebar-overlay { display: none !important; }
   #tab-bar { display: none !important; }
 }
+
+/* ── Menus v2: Now (see wireNowV2) ── */
+#nx { display: flex; flex-direction: column; gap: 14px; margin: 0 0 16px; }
+.nx-hero { position: relative; height: 170px; border-radius: 20px; overflow: hidden; border: 1px solid #1F2633; background: #0F141D; }
+.nx-hero-img, .nx-hero-cv { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.nx-hero-img::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 38%, rgba(10,12,17,0.7) 42%); background-size: 6px 6px; }
+.nx-hero-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: linear-gradient(rgba(11,14,20,0), rgba(11,14,20,0.92)); }
+.nx-name { flex: 1; font: 600 20px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nx-hero-bar button { width: 40px; height: 40px; border-radius: 12px; border: 0; background: rgba(255,255,255,0.12); color: #E8ECF4; display: grid; place-items: center; cursor: pointer; }
+.nx-hero-bar button.on { color: #FFD24C; }
+.nx-pal { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+.nx-pal button { height: 34px; border-radius: 10px; border: 1px solid #2A3242; cursor: pointer; padding: 0; }
+.nx-pal button.on { outline: 2px solid #7FE6FF; outline-offset: 2px; }
+.nx-dials { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.nx-dial { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; border-radius: 18px; background: #0F141D; border: 1px solid #1F2633; cursor: pointer; }
+.nx-ring { width: 64px; height: 64px; border-radius: 50%; background: conic-gradient(var(--c) 0 var(--p, 50%), #232A38 var(--p, 50%) 100%); display: grid; place-items: center; }
+.nx-in { width: 50px; height: 50px; border-radius: 50%; background: #0F141D; color: var(--c); display: grid; place-items: center; }
+.nx-val { font: 600 17px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; }
+.nx-dial input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: ew-resize; margin: 0; }
+.nx-quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.nx-quick button { aspect-ratio: 1; border-radius: 18px; border: 0; background: linear-gradient(135deg, var(--a), var(--b)); color: var(--i); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font: 500 11px Inter, sans-serif; }
+.nx-quick button.on { outline: 2px solid #FF9EC4; outline-offset: 2px; }
+.nx-ov { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.nx-ov button { height: 52px; border-radius: 14px; border: 1px solid #1F2633; background: #0F141D; color: #8892A6; display: grid; place-items: center; cursor: pointer; }
+.nx-ov button.on { border: 2px solid #7FE6FF; background: #11283A; color: #7FE6FF; }
+.nx-recent { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.nx-recent button { height: 52px; border-radius: 12px; border: 1px solid #1F2633; padding: 0; overflow: hidden; cursor: pointer; background: #0F141D; }
+.nx-recent button.on { border: 2px solid #7FE6FF; }
+.nx-recent canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+/* The old wordy rows these replace. */
+#now-section .section-body > div[style*="gap:8px;margin:0 0 10px"], #recent-row, #now-section .cx-ask, #cx-ask-chips, #now-section .cx-pal-row, #now-section .section-body > .slider-row:has(#speed-slider) { display: none !important; }
+
+/* ── Menus v2: Setup home (see wireSetupV2) ── */
+#sx { display: flex; flex-direction: column; gap: 14px; }
+.sx-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sx-g { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; border-radius: 18px; background: #0F141D; border: 1px solid #1F2633; font-size: 11px; color: #8892A6; }
+.sx-ring { width: 58px; height: 58px; border-radius: 50%; background: conic-gradient(var(--c, #5EE08A) 0 var(--p, 0%), #232A38 var(--p, 0%) 100%); display: grid; place-items: center; }
+.sx-ring b { width: 46px; height: 46px; border-radius: 50%; background: #0F141D; display: grid; place-items: center; font: 600 15px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; }
+.sx-ring.sx-ok { background: #123A2A; } .sx-ring.sx-ok b { background: transparent; color: #5EE08A; font-size: 22px; }
+.sx-g.warn .sx-ring { background: #3A2A10; } .sx-g.warn .sx-ring b { color: #FFB86B; }
+.sx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sx-grid button { position: relative; aspect-ratio: 1; border-radius: 20px; border: 1px solid #1F2633; background: linear-gradient(160deg, var(--g), #0F141D); color: var(--c); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.sx-grid button span { font: 500 12px Inter, sans-serif; color: #E8ECF4; }
+.sx-grid button:hover { border-color: #3A4458; }
+.sx-dot { position: absolute; top: 12px; right: 12px; width: 8px; height: 8px; border-radius: 50%; background: #5EE08A; }
+.sx-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sx-actions button { height: 72px; border-radius: 18px; border: 1px solid #2A3242; background: #141A25; color: #7FE6FF; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.sx-actions button span { font: 500 12px Inter, sans-serif; color: #E8ECF4; }
+.sx-actions button.danger { border-color: #4A2530; background: #1E1216; color: #FF9EA8; } .sx-actions button.danger span { color: #FF9EA8; }
+
+/* ── Menus v2: Effects spotlight and the Day strip ── */
+#fx-spot { position: relative; height: 150px; border-radius: 20px; overflow: hidden; border: 1px solid #1F2633; margin: 0 0 12px; background: #0F141D; }
+.fx-spot-img canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.fx-spot-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: linear-gradient(rgba(11,14,20,0), rgba(11,14,20,0.92)); }
+.fx-spot-bar > div { flex: 1; display: flex; flex-direction: column; }
+.fx-spot-kicker { font: 600 10px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #7FE6FF; }
+.fx-spot-name { font: 600 18px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; }
+.fx-spot-bar button { height: 38px; padding: 0 18px; border-radius: 10px; border: 0; background: #7FE6FF; color: #0A0C11; font: 600 13px Inter, sans-serif; cursor: pointer; }
+#day-strip { margin: 0 0 12px; }
+#day-strip.off { opacity: 0.45; }
+.day-bar { position: relative; height: 54px; border-radius: 12px; overflow: hidden; display: flex; }
+.day-bar > div { display: flex; align-items: flex-end; padding: 6px; font: 500 11px Inter, sans-serif; min-width: 0; overflow: hidden; }
+.day-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #E8ECF4; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
+.day-ticks { display: flex; justify-content: space-between; font-size: 11px; color: #6B7487; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -1543,6 +1607,22 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div id="setup-search"><input type="search" id="setup-search-in" placeholder="🔍 Search settings: bluetooth, PIN, update…" aria-label="Search settings" autocomplete="off"></div>
   <div class="sidebar-section" id="now-section" data-tab="play" data-label="Now">
     <div class="section-body">
+      <!-- Menus v2: Now (pictures first) - see wireNowV2() in public/src/97-studio.js. -->
+      <div id="nx">
+        <div class="nx-hero"><div class="nx-hero-img"></div><div class="nx-hero-bar"><span class="nx-name"></span>
+          <button type="button" data-nx="fav" aria-label="Favourite"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg></button>
+          <button type="button" data-nx="save" aria-label="Save as scene"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3"/></svg></button></div></div>
+        <div class="nx-pal" aria-label="Colours"></div>
+        <div class="nx-dials"></div>
+        <div class="nx-quick">
+          <button type="button" data-q="draw" aria-label="Draw" style="--a:#2B1B4A;--b:#4A2A7A;--i:#E3CFFF"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>Draw</span></button>
+          <button type="button" data-q="note" aria-label="Message" style="--a:#0F3045;--b:#1A5A7A;--i:#BFF2FF"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg><span>Message</span></button>
+          <button type="button" data-q="party" aria-label="Party" style="--a:#4A1530;--b:#8A2A50;--i:#FFC8DD"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5.8 11.3 2 22l10.7-3.8"/><path d="M8.6 8.6l6.8 6.8"/><path d="M15 2h.01M22 8h.01M22 20h.01M4 3h.01"/></svg><span>Party</span></button>
+          <button type="button" data-q="bed" aria-label="Bedtime" style="--a:#1A1E45;--b:#2E3670;--i:#C9D1FF"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg><span>Bedtime</span></button>
+        </div>
+        <div class="nx-ov" aria-label="Over any effect"></div>
+        <div class="nx-recent" aria-label="Recent effects"></div>
+      </div>
       <div style="display:flex;gap:8px;margin:0 0 10px;">
         <button type="button" id="draw-open" class="ui-btn-primary" style="flex:1;margin:0;">🎨 Draw</button>
         <button type="button" id="note-open" class="ui-btn-primary" style="flex:1;margin:0;">💌 Message</button>
@@ -1567,6 +1647,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section">
     <button class="section-head" style="color:rgba(180,220,255,0.95);">◈ Effects <span class="chev">▾</span></button>
     <div class="section-body" id="effects-body">
+    <div id="fx-spot"><div class="fx-spot-img"></div><div class="fx-spot-bar"><div><span class="fx-spot-kicker">New for the cube</span><span class="fx-spot-name"></span></div><button type="button">Play</button></div></div>
     <div class="effect-filter-row">
       <input type="search" id="effect-filter" placeholder="Search effects…" aria-label="Search effects" autocomplete="off">
     </div>
@@ -2583,7 +2664,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section collapsed" id="auto-section">
     <button class="section-head">◈ Auto show <span class="chev">▾</span></button>
     <div class="section-body">
-      <div class="ui-note">Let the display choose for itself. Celebrations come first, then the weather, then your day plan.</div>
+      <div id="day-strip"><div class="day-bar"></div><div class="day-ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>
       <div id="auto-show-ui"></div>
     </div>
   </div>
@@ -2760,6 +2841,24 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   </div>
   <!-- ── Timers Section ── -->
   
+  <div class="sidebar-section" id="setup-home" data-tab="setup" data-label="Home">
+    <div class="section-body">
+      <!-- Menus v2: Setup home - see wireSetupV2() in public/src/97-studio.js. -->
+      <div id="sx">
+        <div class="sx-gauges">
+          <div class="sx-g" data-g="fps"><span class="sx-ring"><b>–</b></span><span>fps</span></div>
+          <div class="sx-g" data-g="temp"><span class="sx-ring"><b>–</b></span><span>Pi</span></div>
+          <div class="sx-g" data-g="ver"><span class="sx-ring sx-ok"><b>✓</b></span><span data-gl="ver"></span></div>
+        </div>
+        <div class="sx-grid"></div>
+        <div class="sx-actions">
+          <button type="button" data-sxa="update"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg><span>Update</span></button>
+          <button type="button" data-sxa="restart"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span>Restart</span></button>
+          <button type="button" data-sxa="reboot" class="danger"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/></svg><span>Reboot</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="sidebar-section collapsed">
     <button class="section-head">◈ Display <span class="chev">▾</span></button>
     <div class="section-body">
