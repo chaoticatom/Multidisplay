@@ -455,6 +455,7 @@ function declutter(root = document.getElementById('sidebar-scroll')) {
     n.before(b);
   });
   root.querySelectorAll('.ui-label-accent, .ov-row-label, .cx-row > span:first-child, .check-row > span, .ui-check-label').forEach(shortLabel);
+  tileify(root); twoWordLabels(root);
   root.querySelectorAll('.slider-label:not([data-dc])').forEach((l) => {
     l.dataset.dc = '1';
     const key = (l.textContent || '').trim().toLowerCase(), ic = SLIDER_ICONS[key];
@@ -467,4 +468,64 @@ function wireDeclutter() {
   // Panels moved into Now, timers and lists re-render: tidy what appears.
   let pend = false;
   new MutationObserver(() => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; declutter(); }); }).observe(document.getElementById('sidebar-scroll') || document.body, { childList: true, subtree: true });
+}
+
+// ── Icon tiles: every choice button in the menus and effect options shows a
+// picture (an icon, or a swatch for a colour) over a label of a word or two;
+// the full wording stays as its hint. Labels everywhere are capped at two
+// words. (The rule from the effect-options mock-up, applied to all of them.)
+const TILE_SWATCH = {
+  rainbow: 'linear-gradient(90deg,#FF5E7A,#FFB86B,#7CF29A,#5DE1FF,#B57BFF)', gold: 'linear-gradient(90deg,#FFC24C,#FFE7A0)', 'gold & silver': 'linear-gradient(90deg,#FFC24C,#E8ECF4,#FFC24C)',
+  'red white blue': 'linear-gradient(90deg,#FF3D57,#FFFFFF,#3D6BFF)', neon: 'linear-gradient(90deg,#FF2BD6,#7A3CFF,#2BFFF1)', ocean: 'linear-gradient(90deg,#03124a,#0b4fa3,#5fe6e0)', fire: 'linear-gradient(90deg,#3d0700,#ff4d00,#ffab1a)',
+  pastel: 'linear-gradient(90deg,#FFB3C7,#FFE3A3,#B8F2C8,#B3D9FF)', matrix: 'linear-gradient(180deg,#003B12,#00FF66)', 'vu meter': 'linear-gradient(90deg,#22C55E,#FACC15,#EF4444)', multi: 'linear-gradient(90deg,#FF5E7A,#5DE1FF,#7CF29A)',
+  red: '#EF4444', green: '#22C55E', blue: '#3B82F6', cyan: '#22D3EE', white: '#F2F4F8', black: '#000', 'over water': 'linear-gradient(180deg,#0B1530 0 60%,#0F3E6B 61%)', city: 'linear-gradient(180deg,#0B1530 0 55%,#05070D 56%)', 'open sky': 'linear-gradient(180deg,#0B1530,#1E2A55)',
+  'game boy': 'linear-gradient(180deg,#9BBC0F,#306230)', 'zx spectrum': 'linear-gradient(90deg,#D70000,#D7D700,#00D700,#00D7D7)',
+};
+const TILE_ICON = {
+  random: '<path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>', 'sync show': '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', mic: '<path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/>',
+  mixed: '<circle cx="8" cy="8" r="3"/><circle cx="16" cy="9" r="2"/><circle cx="11" cy="16" r="4"/>', classic: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3"/>', willow: '<path d="M12 4v4M12 8c-4 2-6 6-6 12M12 8c4 2 6 6 6 12M12 8v12"/>',
+  shapes: '<path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/>', crackle: '<path d="M5 5h.01M12 4h.01M19 6h.01M7 12h.01M15 11h.01M4 18h.01M11 19h.01M19 17h.01"/>', rings: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="10"/>',
+  small: '<circle cx="12" cy="12" r="3"/>', large: '<circle cx="12" cy="12" r="8"/>', huge: '<circle cx="12" cy="12" r="10"/>', full: '<rect x="3" y="3" width="18" height="18" rx="2"/>',
+  on: '<path d="M20 6 9 17l-5-5"/>', off: '<path d="M18 6 6 18M6 6l12 12"/>', show: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', hide: '<path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 22 12s-1.2 2.2-3.5 4M6.5 6.6C3.6 8.3 2 12 2 12s4 7 10 7c1.7 0 3.2-.5 4.5-1.2"/>',
+  'every 2 min': '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>', 'on a big beat': '<path d="M3 12h4l3 8 4-16 3 8h4"/>', test: '<path d="M7 4l13 8-13 8z"/>',
+  solid: '<rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor"/>', striped: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>', wave: '<path d="M2 12c3-6 5-6 8 0s5 6 8 0 3-4 4-4"/>', falling: '<path d="M12 4v14M6 12l6 6 6-6"/>',
+  center: '<circle cx="12" cy="12" r="2"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>', stacked: '<rect x="5" y="4" width="14" height="4" rx="1"/><rect x="5" y="10" width="14" height="4" rx="1"/><rect x="5" y="16" width="14" height="4" rx="1"/>',
+  'cross faces': '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M3 12h18"/>', 'own face': '<rect x="5" y="5" width="14" height="14" rx="2"/>', faces: '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/>',
+  cut: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>', wipe: '<path d="M4 4h8v16H4z"/><path d="M16 4v16"/>', scan: '<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M3 12h18"/>', diag: '<path d="M4 20 20 4"/>',
+  clean: '<path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/>', alt: '<path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/>', 'straight on': '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  'arcade crt': '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>', 'crt power-on': '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 10.5h8"/>',
+};
+const TILE_SKIP = '#nx, #sx, #mx, #face-pick, #studio-deck, #dgroups, #quality-chips, #bottom-chips, #view-chips, #tr-style, #tr-secs';
+function twoWords(text) {
+  const t = text.replace(/\s+/g, ' ').trim(), em = t.match(/^(\p{Extended_Pictographic}️?\s*)/u), lead = em ? em[1] : '';
+  const words = t.slice(lead.length).split(' ');
+  return words.length <= 2 ? t : lead + words.slice(0, 2).join(' ').replace(/[,:;.-]+$/, '');
+}
+function tileify(root) {
+  root.querySelectorAll('.strobe-mode-btn:not([data-tile]), .spectrum-bands-btn:not([data-tile]), .au-theme-btn:not([data-tile]), .au-barmode-btn:not([data-tile]), .retro-game-btn:not([data-tile])').forEach((b) => {
+    if (b.closest(TILE_SKIP)) return;
+    b.dataset.tile = '1';
+    const full = (b.textContent || '').replace(/\s+/g, ' ').trim(); if (!full) return;
+    const key = full.replace(/^[^\p{L}\p{N}]+/u, '').toLowerCase().replace('&amp;', '&');
+    const label = twoWords(full.replace(/^[▶🎤]\s*/u, ''));
+    if (!b.title) b.title = full; if (!b.getAttribute('aria-label')) b.setAttribute('aria-label', full);
+    const sw = TILE_SWATCH[key], ic = TILE_ICON[key] || TILE_ICON[key.split(' ')[0]];
+    b.classList.add('icon-tile');
+    const pic = document.createElement('span'); pic.className = 'it-pic'; pic.setAttribute('aria-hidden', 'true');
+    if (sw) pic.style.background = sw;
+    else if (ic) pic.innerHTML = svgIcon(ic, 22);
+    else { pic.textContent = /^[\d°x.]+$/i.test(full) ? full : full.replace(/^[^\p{L}\p{N}]+/u, '').slice(0, 1).toUpperCase(); pic.classList.add('it-letter'); }
+    const lab = document.createElement('span'); lab.className = 'it-label'; lab.textContent = /^[\d°x.]+$/i.test(full) ? '' : label;
+    b.replaceChildren(pic, lab);
+  });
+}
+// Labels: two words at most (the full text is the hint).
+function twoWordLabels(root) {
+  root.querySelectorAll('.ov-row-label:not([data-tw]), .ui-label-accent:not([data-tw]), .cx-row > span:first-child:not([data-tw]), .check-row > span:not([data-tw]), .ui-check-label:not([data-tw]), .tm-label:not([data-tw])').forEach((el) => {
+    if (el.closest(TILE_SKIP)) return;
+    el.dataset.tw = '1';
+    const tn = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim()); if (!tn) return;
+    const full = (el.textContent || '').replace(/\s+/g, ' ').trim(), short = twoWords(tn.textContent);
+    if (short.length < tn.textContent.trim().length) { el.title = el.title || full; tn.textContent = short + ' '; }
+  });
 }

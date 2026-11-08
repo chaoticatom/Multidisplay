@@ -1592,6 +1592,17 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 #sidebar-header { padding: 8px 12px !important; min-height: 0 !important; border-bottom: 0 !important; }
 #sidebar-brightness-bar { padding: 8px 12px !important; border-bottom: 1px solid #1A1F2B !important; background: none !important; }
 #sidebar-buttons { justify-content: flex-start; gap: 10px; }
+
+/* ── Icon tiles (see tileify in 97-studio.js) ── */
+#sidebar .opt-grid:has(.icon-tile), #sidebar .tm-chips:has(.icon-tile) { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px !important; }
+#sidebar .icon-tile { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 66px; padding: 8px 4px !important; border-radius: 16px !important; background: #0F141D !important; border: 1px solid #1F2633 !important; color: #B9C2D3 !important; font-weight: 500 !important; }
+#sidebar .icon-tile .it-pic { width: 34px; height: 24px; border-radius: 8px; display: grid; place-items: center; color: #8892A6; }
+#sidebar .icon-tile .it-pic[style*="background"] { width: 40px; height: 22px; border: 1px solid #2A3242; }
+#sidebar .icon-tile .it-letter { font: 600 16px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; }
+#sidebar .icon-tile .it-label { font-size: 11px; line-height: 1.15; text-align: center; color: #B9C2D3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#sidebar .icon-tile .it-label:empty { display: none; }
+#sidebar .icon-tile.active, #sidebar .icon-tile.on { background: #11283A !important; border: 2px solid #7FE6FF !important; color: #7FE6FF !important; }
+#sidebar .icon-tile.active .it-pic, #sidebar .icon-tile.on .it-pic, #sidebar .icon-tile.active .it-label, #sidebar .icon-tile.on .it-label, #sidebar .icon-tile.active .it-letter { color: #7FE6FF; }
 </style>
 </head>
 <body>
@@ -3354,6 +3365,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.8"></script>
+<script src="app.js?v=0.7.9"></script>
 </body>
 </html>
