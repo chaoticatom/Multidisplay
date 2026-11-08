@@ -1360,6 +1360,51 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   #sidebar { --c-acc: var(--st-acc); --cx1: #3FB8E0; --cx2: #7FE6FF; }
   #sidebar .ui-btn-primary { background: var(--st-acc) !important; color: #0A0C11 !important; }
 }
+
+/* ── Studio skin: the menus, sections and controls in the v2 look ── */
+#sidebar { --cx1: #3FB8E0; --cx2: #7FE6FF; background: #0B0E14 !important; color: #E8ECF4; font-family: Inter, 'Segoe UI', system-ui, sans-serif; }
+#sidebar-header h1 { font-family: 'Space Grotesk', Inter, sans-serif !important; letter-spacing: 0.02em !important; color: #E8ECF4 !important; background: none !important; -webkit-text-fill-color: currentColor !important; text-transform: none !important; font-size: 17px !important; }
+#sidebar-collapse-btn { width: 36px; height: 36px; border-radius: 10px !important; background: #141A25 !important; border: 1px solid #2A3242 !important; color: #B9C2D3 !important; }
+#cx-hero { border-radius: 18px !important; border: 1px solid #1F2633 !important; }
+#sidebar .cx-round { background: #141A25 !important; border: 1px solid #2A3242 !important; box-shadow: none !important; }
+/* Sub-tabs: one segmented control. */
+#sidebar .subtab-bar { background: #11161F; border: 1px solid #1F2633; padding: 4px; border-radius: 14px; }
+#sidebar .subtab-bar button { color: #8892A6; font-weight: 500; border-radius: 10px; padding: 8px 4px; }
+#sidebar .subtab-bar button.on { background: #1E2633; color: #E8ECF4; font-weight: 600; box-shadow: inset 0 0 0 1px #2E3748; }
+/* Sections: quiet headings, content on soft cards. */
+#sidebar .ui-label-accent, #sidebar .ov-row-label, #sidebar .tm-label { font-size: 11px !important; font-weight: 600 !important; letter-spacing: 0.08em !important; text-transform: uppercase; color: #8892A6 !important; background: none !important; -webkit-text-fill-color: currentColor; }
+#sidebar .ui-note, #sidebar .ui-hint { color: #8892A6 !important; font-size: 12.5px; line-height: 1.5; }
+#sidebar .section-head { font-family: 'Space Grotesk', Inter, sans-serif; font-weight: 600; color: #E8ECF4; }
+#sidebar .sub-head { border-radius: 12px; background: #11161F !important; border: 1px solid #1F2633 !important; color: #E8ECF4 !important; font-weight: 600; }
+#sidebar .effect-panel, #sidebar .ov-item, #sidebar .check-row { border-radius: 14px; }
+#sidebar .effect-panel { background: #0F141D !important; border: 1px solid #1F2633 !important; }
+#sidebar .dgroup, #sidebar .cx-row { border-color: #1F2633 !important; }
+/* Buttons. */
+#sidebar button.ui-btn-small, #sidebar .ui-btn, #sidebar .retro-game-btn { background: #141A25 !important; border: 1px solid #2A3242 !important; color: #E8ECF4 !important; border-radius: 12px !important; font-weight: 500 !important; box-shadow: none !important; }
+#sidebar button.ui-btn-small:hover, #sidebar .ui-btn:hover, #sidebar .retro-game-btn:hover { background: #1A2231 !important; border-color: #3A4458 !important; }
+#sidebar .ui-btn-primary, .tm-modal .ui-btn-primary { background: #7FE6FF !important; color: #0A0C11 !important; border: 0 !important; border-radius: 12px !important; font-weight: 600 !important; box-shadow: none !important; }
+#sidebar .ui-btn-primary:hover { background: #A6EEFF !important; }
+/* Chips (choices). */
+#sidebar .strobe-mode-btn, #sidebar .tm-chips button, #sidebar .spectrum-bands-btn, #sidebar .au-theme-btn, #sidebar .au-barmode-btn { background: #131924 !important; border: 1px solid #2A3242 !important; color: #B9C2D3 !important; border-radius: 999px !important; font-weight: 500 !important; box-shadow: none !important; }
+#sidebar .strobe-mode-btn.active, #sidebar .tm-chips button.on, #sidebar .spectrum-bands-btn.active, #sidebar .au-theme-btn.active, #sidebar .au-barmode-btn.active { background: #7FE6FF !important; border-color: #7FE6FF !important; color: #0A0C11 !important; font-weight: 600 !important; }
+#sidebar .opt-grid { gap: 8px !important; }
+/* Fields. */
+#sidebar .ui-input, #sidebar input[type=text], #sidebar input[type=search], #sidebar input[type=number], #sidebar input[type=password], #sidebar input[type=time], #sidebar select, #sidebar textarea { background: #0F141D !important; border: 1px solid #2A3242 !important; color: #E8ECF4 !important; border-radius: 10px !important; box-shadow: none !important; }
+#sidebar .ui-input:focus, #sidebar input:focus, #sidebar select:focus, #sidebar textarea:focus { border-color: #7FE6FF !important; outline: none; }
+#setup-search input { background: #11161F !important; border: 1px solid #232A38 !important; border-radius: 12px !important; }
+/* Sliders and switches. */
+#sidebar input[type=range] { accent-color: #7FE6FF; }
+#sidebar .slider-val { color: #7FE6FF !important; font-variant-numeric: tabular-nums; }
+#sidebar .slider-label { color: #B9C2D3 !important; }
+#sidebar .cx-switch { background: #2A3242; }
+#sidebar .cx-switch.on { background: #7FE6FF !important; }
+#sidebar .cx-switch.on::after { background: #0A0C11; }
+/* Effect tiles: rounded cards, the playing one outlined. */
+#sidebar .effect-btn.cx-tile { border-radius: 14px !important; border: 1px solid #1F2633 !important; background: #0F141D !important; overflow: hidden; box-shadow: none !important; }
+#sidebar .effect-btn.cx-tile.active { border: 2px solid #7FE6FF !important; box-shadow: 0 0 0 3px rgba(127,230,255,0.15) !important; }
+#sidebar .cx-tile-name { font-weight: 500; }
+#sidebar-footer { color: #6B7487 !important; border-top: 1px solid #1A1F2B !important; }
+#sidebar-scroll { scrollbar-color: #2A3242 transparent !important; }
 </style>
 </head>
 <body>
