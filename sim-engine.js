@@ -10473,8 +10473,10 @@ var PiEngine = (() => {
         return s - Math.floor(s);
       };
       module.exports = defineCanvasEffect({
+        panorama: true,
         render(c, { t, core }) {
           const W = c.W, H = c.H, hz = Math.round(H * 0.55);
+          const wrap = !!c.wrap, S = wrap ? H : W, faces = wrap ? Math.round(W / H) : 1;
           const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
           const tt = t / 20, i0 = Math.floor(tt) % THEMES.length, k = tt % 1 < 0.85 ? 0 : (tt % 1 - 0.85) / 0.15;
           const A = THEMES[i0], B = THEMES[(i0 + 1) % THEMES.length];
@@ -10493,7 +10495,7 @@ var PiEngine = (() => {
               c.set(x, y, r, g, b);
             }
           }
-          const sR = Math.min(W, H) * 0.24, sx = W / 2, sy = hz - sR * 0.35 + Math.sin(t * 0.2) * 1.5;
+          const sR = Math.min(W, H) * 0.24, sx = S / 2, sy = hz - sR * 0.35 + Math.sin(t * 0.2) * 1.5;
           for (let y = Math.floor(sy - sR - 3); y < hz; y++) for (let x = Math.floor(sx - sR - 3); x <= sx + sR + 3; x++) {
             const d = Math.hypot(x - sx, y - sy), o = c.get(x, y);
             if (!o) continue;
@@ -10510,8 +10512,8 @@ var PiEngine = (() => {
               c.set(x, y, o[0] + T.sunBot[0] * gl, o[1] + T.sunBot[1] * gl, o[2] + T.sunBot[2] * gl);
             }
           }
-          for (let L = 0; L < 3; L++) {
-            const ang = Math.sin(t * (0.4 + L * 0.17) + L * 2) * 0.9, ox = W * (0.2 + L * 0.3);
+          for (let L = 0; L < 3 * faces; L++) {
+            const ang = Math.sin(t * (0.4 + L * 0.17) + L * 2) * 0.9, ox = S * (Math.floor(L / 3) + 0.2 + L % 3 * 0.3);
             for (let s = 0; s < hz * 1.3; s += 0.5) {
               const x = ox + Math.sin(ang) * s, y = hz - Math.cos(ang) * s;
               if (y < 0) break;
@@ -10521,8 +10523,8 @@ var PiEngine = (() => {
           }
           for (const [layer, hgt, col, edge] of [[0, 0.32, mix(T.mtn, T.sky, 0.35), 0.25], [1, 0.2, T.mtn, 0.5]]) {
             for (let x = 0; x < W; x++) {
-              const u = x / W * 6 + layer * 10;
-              const h = (Math.abs(Math.sin(u * 0.9)) * 0.6 + Math.abs(Math.sin(u * 2.3 + 1)) * 0.3 + hash(Math.floor(u * 4)) * 0.1) * hz * hgt;
+              const u = wrap ? x / W * (2 * Math.PI * 3 * faces / 0.9) + layer * 10 : x / W * 6 + layer * 10, f2 = wrap ? 0.9 * 7 / 3 : 2.3;
+              const h = (Math.abs(Math.sin(u * 0.9)) * 0.6 + Math.abs(Math.sin(u * f2 + 1)) * 0.3 + hash(Math.floor(u * 4)) * 0.1) * hz * hgt;
               const top = Math.round(hz - h);
               for (let y = top; y < hz; y++) c.set(x, y, col[0], col[1], col[2]);
               c.add(x, top, T.grid[0] * edge, T.grid[1] * edge, T.grid[2] * edge);
@@ -10535,7 +10537,7 @@ var PiEngine = (() => {
             const zTop = camH / Math.max(1e-3, (y - hz) / (H - hz)), zBot = camH / ((y - hz + 1) / (H - hz));
             const onRow = Math.floor(zTop + scroll) !== Math.floor(zBot + scroll) ? 1 : 0;
             for (let x = 0; x < W; x++) {
-              const wx = (x - W / 2 + 0.5) / (W / 2) * z * 1.2;
+              const xl = wrap ? x % S : x, wx = (xl - S / 2 + 0.5) / (S / 2) * z * 1.2;
               const xLine = Math.abs((wx % 1 + 1) % 1 - 0.5) * 2;
               const onZ = onRow * Math.min(1, 0.7 / Math.max(1, zTop - zBot));
               const onX = Math.max(0, (xLine - (1 - 0.06 * z)) / (0.06 * z));
@@ -10753,37 +10755,65 @@ var PiEngine = (() => {
       init_define_process_env();
       init_bufferGlobal();
       var { defineCanvasEffect } = require_canvas();
+      var { ringUV } = require_sceneKit();
       var { hsl } = require_core();
       var st = { z: 0 };
       var TAU = Math.PI * 2;
       var LUT = Array.from({ length: 256 }, (_, i) => hsl(i / 256, 0.9, 0.5));
-      module.exports = defineCanvasEffect({
+      function tunnel(r, ang, t, out) {
+        const depth = 0.32 / r;
+        const u = (depth + st.z) * 3, v = ang * 6 + t * 0.3 + depth * 0.5;
+        const cu = Math.cos(u * TAU), cv = Math.cos(v * TAU);
+        const cu2 = cu > 0 ? cu * cu : 0, cv2 = cv > 0 ? cv * cv : 0;
+        const ring = cu2 * cu2 * cu2, rib = cv2 * cv2 * cv2 * cv2 * cv2 * 0.45;
+        const fog = Math.min(1, r * 3.2), hue = (u * 0.02 + t * 0.03) % 1;
+        const col = LUT[Math.floor((hue % 1 + 1) % 1 * 256) & 255];
+        const k = (0.08 + 0.05 * cv * Math.cos(u * Math.PI) + ring * 0.9 + rib) * fog, core0 = Math.exp(-r * r * 140) * 0.9;
+        out[0] = Math.min(1, col[0] * k + core0);
+        out[1] = Math.min(1, col[1] * k + core0 * 0.95);
+        out[2] = Math.min(1, col[2] * k + core0);
+        return out;
+      }
+      var flat = defineCanvasEffect({
         render(c, { t, dt, core }) {
           const W = c.W, H = c.H, S = Math.min(W, H);
           const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
           st.z += dt * (2.2 + beat * 3);
           const cx = W / 2 + Math.sin(t * 0.5) * S * 0.12, cy = H / 2 + Math.cos(t * 0.37) * S * 0.1;
-          const twist = t * 0.3;
           for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-            const dx = (x + 0.5 - cx) / S, dy = (y + 0.5 - cy) / S;
-            const r = Math.sqrt(dx * dx + dy * dy) + 1e-4;
-            const depth = 0.32 / r;
-            const ang = Math.atan2(dy, dx) / Math.PI;
-            const u = (depth + st.z) * 3, v = ang * 6 + twist + depth * 0.5;
-            const cu = Math.cos(u * TAU), cv = Math.cos(v * TAU);
-            const cu2 = cu > 0 ? cu * cu : 0, cv2 = cv > 0 ? cv * cv : 0;
-            const ring = cu2 * cu2 * cu2;
-            const rib = cv2 * cv2 * cv2 * cv2 * cv2 * 0.45;
-            const fog = Math.min(1, r * 3.2);
-            const hue = (u * 0.02 + t * 0.03) % 1;
-            const col = LUT[Math.floor((hue % 1 + 1) % 1 * 256) & 255], cr = col[0], cg = col[1], cb = col[2];
-            const panel = 0.08 + 0.05 * cv * Math.cos(u * Math.PI);
-            let k = (panel + ring * 0.9 + rib) * fog;
-            const core0 = Math.exp(-r * r * 140) * 0.9;
-            c.set(x, y, Math.min(1, cr * k + core0), Math.min(1, cg * k + core0 * 0.95), Math.min(1, cb * k + core0));
+            const dx = (x + 0.5 - cx) / S, dy = (y + 0.5 - cy) / S, r = Math.sqrt(dx * dx + dy * dy) + 1e-4;
+            const col = tunnel(r, Math.atan2(dy, dx) / Math.PI, t, OUT);
+            c.set(x, y, col[0], col[1], col[2]);
           }
         }
       });
+      var P = { x: 0, y: 0, z: 0 };
+      var OUT = [0, 0, 0];
+      function warp(core, dt) {
+        core.t += dt;
+        const t = core.t, beat = core.audio && core.audio.beat ? core.audio.beat : 0;
+        st.z += dt * (2.2 + beat * 3);
+        const N = core.N, X = core.surfX, Y = core.surfY, Z = core.surfZ;
+        for (let i = 0; i < N; i++) {
+          P.x = X[i];
+          P.y = Y[i];
+          P.z = Z[i];
+          const [x, y, , side, bottom] = ringUV(P);
+          let r, ang;
+          if (side) {
+            r = 0.5 + y * 1;
+            ang = x / 2 - 1;
+          } else {
+            const d = Math.max(Math.abs(x - 0.5), Math.abs(y - 0.5));
+            ang = ringUV({ x: P.x, y: 0.5, z: P.z })[0] / 2 - 1;
+            r = bottom ? 1.5 + (0.5 - d) * 1 : d;
+          }
+          const c = tunnel(r * 0.55, ang, t, OUT);
+          core.setLED(i, c[0], c[1], c[2]);
+        }
+      }
+      warp.wall = flat.wall;
+      module.exports = warp;
     }
   });
 
@@ -21305,6 +21335,146 @@ var PiEngine = (() => {
     }
   });
 
+  // src/effects/cubeTops.js
+  var require_cubeTops = __commonJS({
+    "src/effects/cubeTops.js"(exports, module) {
+      "use strict";
+      init_define_process_env();
+      init_bufferGlobal();
+      var { hsl } = require_core();
+      var { wallClock } = require_localTime();
+      var TAU = Math.PI * 2;
+      var topPixels = (core) => {
+        if (!core._topPx || core._topPx.n !== core.N) {
+          const list = [];
+          for (const i of core.faceMap[4]) if (i >= 0) list.push(i);
+          core._topPx = { n: core.N, list };
+        }
+        return core._topPx.list;
+      };
+      function segDist(px, py, ax, ay, bx, by) {
+        const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1e-9, k = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2));
+        return Math.hypot(px - ax - vx * k, py - ay - vy * k);
+      }
+      function clockTop(core) {
+        const now = wallClock(core.tz), s = now.getSeconds() + now.getMilliseconds() / 1e3, m = now.getMinutes() + s / 60, h = now.getHours() % 12 + m / 60;
+        const hand = (frac, len) => {
+          const a = frac * TAU;
+          return [0.5 + Math.sin(a) * len, 0.5 - Math.cos(a) * len];
+        };
+        const H = hand(h / 12, 0.22), M = hand(m / 60, 0.34), S = hand(s / 60, 0.38);
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf;
+        for (const i of topPixels(core)) {
+          const x = X[i], y = Z[i], r = Math.hypot(x - 0.5, y - 0.5), o = i * 3;
+          let R = 0.01, G = 0.012, B = 0.025;
+          if (r < 0.46) {
+            R = 0.025;
+            G = 0.03;
+            B = 0.06;
+          }
+          const rim = Math.exp(-(((r - 0.46) / 0.012) ** 2));
+          R += rim * 0.25;
+          G += rim * 0.45;
+          B += rim * 0.8;
+          const ang = (Math.atan2(x - 0.5, 0.5 - y) / TAU + 1) % 1, mark = Math.abs(ang * 12 % 1 - 0.5) > 0.45 && r > 0.38 && r < 0.44;
+          if (mark) {
+            R += 0.6;
+            G += 0.65;
+            B += 0.7;
+          }
+          const hk = Math.max(0, 1 - segDist(x, y, 0.5, 0.5, H[0], H[1]) / 0.022), mk = Math.max(0, 1 - segDist(x, y, 0.5, 0.5, M[0], M[1]) / 0.016), sk = Math.max(0, 1 - segDist(x, y, 0.5, 0.5, S[0], S[1]) / 0.01);
+          R += hk * 0.95 + mk * 0.8 + sk * 1;
+          G += hk * 0.95 + mk * 0.85 + sk * 0.25;
+          B += hk * 0.9 + mk * 0.9 + sk * 0.2;
+          if (r < 0.025) {
+            R = 1;
+            G = 0.9;
+            B = 0.6;
+          }
+          cb[o] = Math.min(1, R);
+          cb[o + 1] = Math.min(1, G);
+          cb[o + 2] = Math.min(1, B);
+        }
+      }
+      function moonTop(core) {
+        const { getMoonIllumination } = require_state();
+        const phase = getMoonIllumination(/* @__PURE__ */ new Date()).phase;
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf, R0 = 0.3, t = core.t || 0;
+        for (const i of topPixels(core)) {
+          const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3;
+          let R = 4e-3, G = 6e-3, B = 0.02;
+          const st = Math.sin(X[i] * 913.1 + Z[i] * 371.7) * 43758.5;
+          if (d > R0 + 0.04 && st - Math.floor(st) > 0.985) {
+            const tw = 0.4 + 0.3 * Math.sin(t * 2 + st);
+            R += tw;
+            G += tw;
+            B += tw;
+          }
+          if (d < R0) {
+            const nx = x / R0, nz = Math.sqrt(Math.max(0, 1 - (x * x + y * y) / (R0 * R0))), a = phase * TAU;
+            const lit = Math.max(0, nx * Math.sin(a) - nz * Math.cos(a));
+            const crater = 0.85 + 0.15 * Math.sin(X[i] * 60) * Math.sin(Z[i] * 53);
+            const k = (0.04 + 0.85 * Math.min(1, lit * 1.4)) * crater;
+            R = k * 0.95;
+            G = k * 0.93;
+            B = k * 0.85;
+          } else {
+            const glow = Math.exp(-(d - R0) / 0.04) * 0.08 * (1 - Math.abs(phase - 0.5) * 2 * 0.7);
+            R += glow;
+            G += glow;
+            B += glow * 1.1;
+          }
+          cb[o] = Math.min(1, R);
+          cb[o + 1] = Math.min(1, G);
+          cb[o + 2] = Math.min(1, B);
+        }
+      }
+      function recordTop(core) {
+        const playing = core.audio && core.audio.active, beat = playing ? core.audio.beat || 0 : 0;
+        core._recAng = (core._recAng || 0) + (playing ? 0.035 : 4e-3);
+        const X = core.surfX, Z = core.surfZ, cb = core.colBuf, lab = hsl((core.t || 0) * 0.01 % 1, 0.8, 0.5);
+        for (const i of topPixels(core)) {
+          const x = X[i] - 0.5, y = Z[i] - 0.5, d = Math.hypot(x, y), o = i * 3, a = Math.atan2(y, x) + core._recAng;
+          let R = 8e-3, G = 8e-3, B = 0.012;
+          if (d < 0.46) {
+            const groove = 0.5 + 0.5 * Math.sin(d * 260), sheen = Math.pow(Math.max(0, Math.cos(a * 2)), 6) * 0.35;
+            const k = 0.03 + groove * 0.03 + sheen * (0.4 + d);
+            R = k;
+            G = k;
+            B = k * 1.1;
+            if (d < 0.15) {
+              const kk = 0.8 + 0.2 * Math.cos(a * 3) + beat * 0.3;
+              R = lab[0] * kk;
+              G = lab[1] * kk;
+              B = lab[2] * kk;
+            }
+            if (d < 0.02) {
+              R = 0.7;
+              G = 0.7;
+              B = 0.75;
+            }
+          }
+          cb[o] = Math.min(1, R);
+          cb[o + 1] = Math.min(1, G);
+          cb[o + 2] = Math.min(1, B);
+        }
+      }
+      function withTop(fn, top) {
+        const g = (core, dt) => {
+          const r = fn(core, dt);
+          try {
+            top(core);
+          } catch (e) {
+          }
+          return r;
+        };
+        for (const k of Object.keys(fn)) g[k] = fn[k];
+        return g;
+      }
+      module.exports = { withTop, clockTop, moonTop, recordTop };
+    }
+  });
+
   // src/effects/ghostFace.js
   var require_ghostFace = __commonJS({
     "src/effects/ghostFace.js"(exports, module) {
@@ -31500,6 +31670,7 @@ var PiEngine = (() => {
       var prism = require_prism();
       var tide = require_tide();
       var datetime = require_clock();
+      var { withTop, clockTop, moonTop, recordTop } = require_cubeTops();
       var ghost = require_ghostFace();
       var ghost3d = require_ghost3d();
       var moon = require_celestial();
@@ -31624,11 +31795,11 @@ var PiEngine = (() => {
         ambient_weather: ambientWeather,
         pixel_pet: pixelPet,
         snake,
-        now_playing: nowPlaying,
+        now_playing: withTop(nowPlaying, recordTop),
         message: messageBoard,
         draw: drawPad,
-        word_clock: wordClock,
-        countdown,
+        word_clock: withTop(wordClock, clockTop),
+        countdown: withTop(countdown, clockTop),
         starfield,
         fluid_ink: fluidInk,
         lava_lamp: lavaLamp,
@@ -31658,7 +31829,7 @@ var PiEngine = (() => {
         fireworks,
         retro,
         video,
-        radio,
+        radio: withTop(radio, recordTop),
         strobe,
         balls,
         sand,
@@ -31669,8 +31840,8 @@ var PiEngine = (() => {
         tide,
         ghost,
         ghost2: ghost3d,
-        datetime,
-        moon,
+        datetime: withTop(datetime, clockTop),
+        moon: withTop(moon, moonTop),
         epic,
         apod,
         iss,

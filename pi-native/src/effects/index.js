@@ -59,6 +59,7 @@ const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
+const { withTop, clockTop, moonTop, recordTop } = require('./cubeTops'); // cube top pictures for text/info effects
 const ghost = require('./ghostFace'); // Ghost Face
 const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
 const moon = require('./celestial/celestial');
@@ -189,11 +190,11 @@ const EFFECTS = {
   ambient_weather: ambientWeather,
   pixel_pet: pixelPet,
   snake: snake,
-  now_playing: nowPlaying,
+  now_playing: withTop(nowPlaying, recordTop),
   message: messageBoard,
   draw: drawPad,
-  word_clock: wordClock,
-  countdown,
+  word_clock: withTop(wordClock, clockTop),
+  countdown: withTop(countdown, clockTop),
   starfield: starfield,
   fluid_ink: fluidInk,
   lava_lamp: lavaLamp,
@@ -223,7 +224,7 @@ const EFFECTS = {
   fireworks,
   retro,
   video,
-  radio,
+  radio: withTop(radio, recordTop),
   strobe,
   balls,
   sand,
@@ -234,8 +235,8 @@ const EFFECTS = {
   tide,
   ghost,
   ghost2: ghost3d,
-  datetime,
-  moon,
+  datetime: withTop(datetime, clockTop),
+  moon: withTop(moon, moonTop),
   epic,
   apod,
   iss,

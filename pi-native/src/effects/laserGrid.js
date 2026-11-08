@@ -2,8 +2,10 @@
 // perspective rushes towards you, a striped sunset sun sinks behind
 // layered mountains, stars twinkle above, and laser beams sweep the sky from
 // the horizon. The colours slowly cycle (magenta/cyan, orange/purple,
-// green/blue) and the grid pulses with the beat. Same on every cube side
-// face; fills a flat panel.
+// green/blue) and the grid pulses with the beat. On the cube it's one scene
+// round the four sides - the sun ahead on the front, the mountains running
+// on round the corners, lasers on every side, and the floor in perspective
+// as you look out of each side; fills a flat panel.
 'use strict';
 const { defineCanvasEffect } = require('./canvas');
 
@@ -16,8 +18,10 @@ const mix = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[
 const hash = (x) => { const s = Math.sin(x * 127.1) * 43758.5453; return s - Math.floor(s); };
 
 module.exports = defineCanvasEffect({
+  panorama: true,
   render(c, { t, core }) {
     const W = c.W, H = c.H, hz = Math.round(H * 0.55); // horizon
+    const wrap = !!c.wrap, S = wrap ? H : W, faces = wrap ? Math.round(W / H) : 1; // one view per side round the cube
     const beat = core.audio && core.audio.beat ? core.audio.beat : 0;
     // Theme blends slowly between palettes.
     const tt = t / 20, i0 = Math.floor(tt) % THEMES.length, k = (tt % 1) < 0.85 ? 0 : ((tt % 1) - 0.85) / 0.15;
@@ -33,7 +37,7 @@ module.exports = defineCanvasEffect({
       }
     }
     // Sun: a disc sinking slightly behind the horizon, with stripes cut out of its lower half.
-    const sR = Math.min(W, H) * 0.24, sx = W / 2, sy = hz - sR * 0.35 + Math.sin(t * 0.2) * 1.5;
+    const sR = Math.min(W, H) * 0.24, sx = S / 2, sy = hz - sR * 0.35 + Math.sin(t * 0.2) * 1.5;
     for (let y = Math.floor(sy - sR - 3); y < hz; y++) for (let x = Math.floor(sx - sR - 3); x <= sx + sR + 3; x++) {
       const d = Math.hypot(x - sx, y - sy), o = c.get(x, y); if (!o) continue;
       if (d < sR) {
@@ -44,8 +48,8 @@ module.exports = defineCanvasEffect({
       } else if (d < sR + 4) { const gl = (1 - (d - sR) / 4) * 0.35; c.set(x, y, o[0] + T.sunBot[0] * gl, o[1] + T.sunBot[1] * gl, o[2] + T.sunBot[2] * gl); }
     }
     // Lasers fanning up from the horizon.
-    for (let L = 0; L < 3; L++) {
-      const ang = Math.sin(t * (0.4 + L * 0.17) + L * 2) * 0.9, ox = W * (0.2 + L * 0.3);
+    for (let L = 0; L < 3 * faces; L++) {
+      const ang = Math.sin(t * (0.4 + L * 0.17) + L * 2) * 0.9, ox = S * (Math.floor(L / 3) + 0.2 + (L % 3) * 0.3);
       for (let s = 0; s < hz * 1.3; s += 0.5) {
         const x = ox + Math.sin(ang) * s, y = hz - Math.cos(ang) * s; if (y < 0) break;
         const f = 0.35 * (1 - s / (hz * 1.3)); c.add(x, y, T.laser[0] * f, T.laser[1] * f, T.laser[2] * f);
@@ -54,8 +58,9 @@ module.exports = defineCanvasEffect({
     // Mountains: two silhouettes with neon edges.
     for (const [layer, hgt, col, edge] of [[0, 0.32, mix(T.mtn, T.sky, 0.35), 0.25], [1, 0.2, T.mtn, 0.5]]) {
       for (let x = 0; x < W; x++) {
-        const u = x / W * 6 + layer * 10;
-        const h = (Math.abs(Math.sin(u * 0.9)) * 0.6 + Math.abs(Math.sin(u * 2.3 + 1)) * 0.3 + hash(Math.floor(u * 4)) * 0.1) * hz * hgt;
+        // Round the cube the ridges repeat exactly once all the way round, so there's no join.
+        const u = wrap ? x / W * (2 * Math.PI * 3 * faces / 0.9) + layer * 10 : x / W * 6 + layer * 10, f2 = wrap ? 0.9 * 7 / 3 : 2.3;
+        const h = (Math.abs(Math.sin(u * 0.9)) * 0.6 + Math.abs(Math.sin(u * f2 + 1)) * 0.3 + hash(Math.floor(u * 4)) * 0.1) * hz * hgt;
         const top = Math.round(hz - h);
         for (let y = top; y < hz; y++) c.set(x, y, col[0], col[1], col[2]);
         c.add(x, top, T.grid[0] * edge, T.grid[1] * edge, T.grid[2] * edge);
@@ -73,7 +78,7 @@ module.exports = defineCanvasEffect({
       const zTop = camH / Math.max(1e-3, (y - hz) / (H - hz)), zBot = camH / ((y - hz + 1) / (H - hz));
       const onRow = Math.floor(zTop + scroll) !== Math.floor(zBot + scroll) ? 1 : 0;
       for (let x = 0; x < W; x++) {
-        const wx = (x - W / 2 + 0.5) / (W / 2) * z * 1.2;
+        const xl = wrap ? x % S : x, wx = (xl - S / 2 + 0.5) / (S / 2) * z * 1.2; // each side its own view out
         const xLine = Math.abs(((wx % 1) + 1) % 1 - 0.5) * 2;
         const onZ = onRow * Math.min(1, 0.7 / Math.max(1, zTop - zBot)); // dimmer where many depths share a row (far away)
         const onX = Math.max(0, (xLine - (1 - 0.06 * z)) / (0.06 * z));
