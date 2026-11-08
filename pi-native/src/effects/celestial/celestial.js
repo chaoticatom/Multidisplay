@@ -108,8 +108,7 @@ function effectCelestial(core, dt) {
 
     // Real report: "celestial needs to have a city search function like
     // the weather does. the moon needs to take that into consideration
-    // to show angle of the terminator. it was working on the esp32
-    // version" - confirmed against the retired app's actual source: it
+    // to show angle of the terminator" - confirmed against the retired app's actual source: it
     // DID read a real, user-picked moonLat here (see this file's module
     // comment for the full story of how this was dropped and restored).
     const lat = Number.isFinite(core.effectOptions?.moon?.lat) ? core.effectOptions.moon.lat : MOON_LAT_DEFAULT;

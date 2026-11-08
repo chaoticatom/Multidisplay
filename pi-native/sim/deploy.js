@@ -6,9 +6,8 @@
 // patched to load the two extra sim-only scripts and set
 // window.MULTIDISPLAY_SIM before app.js runs. See sim/README.md.
 //
-// Deploys to the REPO ROOT (not a pi-sim/ subfolder) - the ESP32+browser
-// architecture this root URL used to serve is retired, this is the only
-// simulator now. The old root-level browser app files (ui.js, cube.js,
+// Deploys to the REPO ROOT (not a pi-sim/ subfolder) - this is the only
+// simulator. The old root-level browser app files (ui.js, cube.js,
 // effects-*.js, sw.js/service-worker.js, three.part*.js) were removed in
 // the same commit that introduced this; if you're looking for that
 // architecture, it's still in git history before that commit.

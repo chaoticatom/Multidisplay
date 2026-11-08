@@ -10,7 +10,7 @@ const { createWxState } = require('./weather/state');
 const { fetchWeather } = require('./weather/fetch');
 
 const DEFAULT_CITY = process.env.WEATHER_CITY || 'London';
-const WX_REFRESH_SEC = 15 * 60; // matches STANDALONE_WX_INTERVAL_MIN in the ESP32 firmware
+const WX_REFRESH_SEC = 15 * 60; // every 15 minutes
 
 let wxState = null;
 // Separate from wxState.lastFetch (which fetchWeather only updates on

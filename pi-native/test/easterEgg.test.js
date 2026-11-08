@@ -21,18 +21,6 @@ test('img1.bin/img2.bin are each exactly 64*64*3 bytes', () => {
   assert.strictEqual(img1.length, 64 * 64 * 3);
   assert.strictEqual(img2.length, 64 * 64 * 3);
 });
-test('img1.bin matches firmware/src/easter_egg_images.h byte-for-byte', () => {
-  const src = fs.readFileSync(path.join(__dirname, '../../firmware/src/easter_egg_images.h'), 'utf8');
-  const startMarker = 'static const uint8_t EASTER_EGG_IMG1[12288] PROGMEM = {';
-  const bodyStart = src.indexOf(startMarker) + startMarker.length;
-  const endIdx = src.indexOf('};', bodyStart);
-  const expected = src.slice(bodyStart, endIdx).split(',').map((s) => s.trim()).filter(Boolean).map(Number);
-  const actual = fs.readFileSync(path.join(__dirname, '../src/effects/easterEgg/img1.bin'));
-  assert.strictEqual(actual.length, expected.length);
-  for (let i = 0; i < expected.length; i++) {
-    assert.strictEqual(actual[i], expected[i], `byte ${i} differs`);
-  }
-});
 
 console.log('easterEgg effect');
 test('at t~0 (phase<15), a pixel matches img1 exactly (alpha=0), vertically flipped onto faceMap', () => {

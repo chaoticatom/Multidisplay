@@ -41,7 +41,7 @@ const { createUpdater } = require('./selfUpdate');
 // or smooth, so a fast deflate shrinks them several times over for little
 // Pi CPU. Small messages aren't worth it.
 const PREVIEW_DEFLATE = { zlibDeflateOptions: { level: 1, memLevel: 8 }, threshold: 1024, serverNoContextTakeover: false };
-const PREVIEW_FPS = 30; // was 20 (the old ESP32 throttle): the website cube looked jerky - a real report
+const PREVIEW_FPS = 30; // was 20: the website cube looked jerky - a real report
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, 'index.html'));   // read once at startup, not per-request
 const THREE_JS = fs.readFileSync(path.join(PUBLIC_DIR, 'three.min.js'));   // served for the sidebar/3D-preview page's <script src>, same pattern as INDEX_HTML

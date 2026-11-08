@@ -12,14 +12,7 @@ computes every effect frame server-side. That page has nothing to talk to
 without a Pi running, so it can't just be copied to GitHub Pages (a static
 host - no Node process behind it) and expected to work.
 
-This is **not** the original ESP32+browser architecture's simulator
-(`index.html`/`effects-*.js`/`ui.js`, which used to be deployed at this
-same root URL) - that was a separate, older codebase that computed effects
-differently, for a different physical architecture (browser -> ESP32 over
-WebSocket, no Pi involved). That architecture is retired; its source files
-were removed from the repo root when this simulator took over the URL (see
-git history before the commit that did that if you need them). This one
-runs the actual pi-native effect engine.
+It runs the actual pi-native effect engine.
 
 ## How it works
 

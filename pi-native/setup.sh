@@ -191,9 +191,8 @@ display once the physical panels are wired up:
 
   6. WiFi setup: the app checks connectivity on every startup and, if
      none is found, opens its own setup AP ("Multidisplay-Setup", password
-     "cube1234" - see src/wifiSetup.js, must match firmware/src/config.h's
-     AP_SSID/AP_PASSWORD) you can connect a phone/PC to and submit real
-     WiFi credentials through - mirrors the ESP32 firmware's captive-portal
+     "cube1234" - see src/wifiSetup.js) you can connect a phone/PC to and
+     submit real WiFi credentials through - a captive-portal
      flow. This is mostly relevant for LATER (e.g. moving the Pi to a new
      WiFi network without needing SSH again) rather than this first run -
      you already needed working network access for this very script to

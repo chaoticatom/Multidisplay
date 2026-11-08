@@ -316,8 +316,7 @@ function rebuildScene() {
 }
 
 // ---------------------------------------------------------------------
-// Click/touch-and-drag cube rotation - "same look and feel as it was on
-// the ESP32 version": ported from cube.js's quaternion-based orbit
+// Click/touch-and-drag cube rotation: a quaternion-based orbit
 // (applyRotation()/tickInertia()), not a simplified from-scratch version.
 // Y-then-X axis-angle quaternion composition (avoids gimbal lock a plain
 // Euler.x/y increment would hit), momentum that decays after release, and

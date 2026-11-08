@@ -119,7 +119,7 @@ function effectCelestialWall(core, dt) {
 
     // Same fix/root cause as celestial.js's own moon lat (a real report:
     // "celestial needs [a city search]... the moon needs to take that
-    // into consideration... it was working on the esp32 version").
+    // into consideration").
     const lat = Number.isFinite(core.effectOptions?.moon?.lat) ? core.effectOptions.moon.lat : MOON_LAT_DEFAULT;
     const hourNow = (Date.now() % 86400000) / 3600000;
     const tiltBase = lat * Math.PI / 180 * 0.4;

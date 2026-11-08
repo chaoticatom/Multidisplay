@@ -64,8 +64,8 @@ function toggleMenu() {
 // to browser/CDN caching outliving a plain reload, same class of problem
 // the original app's version tap already solved. clears the Cache
 // Storage API and unregisters any service workers (pi-native registers
-// neither itself, but a stale one from visiting this exact URL under the
-// old retired ESP32-architecture app - which DID use both - could still be
+// neither itself, but a stale one from visiting this exact URL under an
+// older version of the page - which DID use both - could still be
 // sitting in the browser), then reloads with a cache-busting query param
 // (location.reload() alone doesn't reliably bypass HTTP caching in modern
 // browsers - the old location.reload(true) "force" argument is a no-op
@@ -119,16 +119,14 @@ function wireSidebarMenu() {
 // Grey out sections pi-native has no backend for yet: Custom
 // Faces (freehand pixel-art drawing onto each face - a different feature
 // from Custom Cube's per-face EFFECT assignment below, and not ported),
-// Standalone Mode, Clear All, ESP32 Firmware Update (that's an ESP32-only
-// OTA flow, meaningless on the Pi). Timers (#alarm-section) is NOT in this
+// Standalone Mode and Clear All. Timers (#alarm-section) is NOT in this
 // list - it's fully wired, see wireAlarmSection(). #panel-editor-section
 // (Face Editor) is NOT in this list either - it's fully wired, see
 // wirePanelEditor()/syncPanelEditor() below (Custom Cube's per-face effect
 // assignment UI).
 // ---------------------------------------------------------------------
 function greyOutUnsupported() {
-  // Everything that used to be greyed out here (ESP32 firmware update,
-  // Custom Faces drawing, Playlist, the radio/spectrum overlays) has been
+  // Everything that used to be greyed out here (Custom Faces drawing, Playlist, the radio/spectrum overlays) has been
   // removed from the page rather than shown disabled. Kept as the single
   // place to grey out anything that's temporarily unavailable.
 }

@@ -7,8 +7,7 @@
 // nx/ny wave across the canvas instead of one cube face - so on a
 // multi-panel wall the picture is one continuous stretched image, not the
 // image tiled/repeated per panel. Same crossfade timing/phases as the cube
-// version and the firmware original (15s hold / 3s fade / 15s hold / 3s
-// fade back).
+// version (15s hold / 3s fade / 15s hold / 3s fade back).
 const fs = require('fs');
 const path = require('path');
 

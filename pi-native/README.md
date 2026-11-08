@@ -1,13 +1,7 @@
 # Multidisplay Pi-native (early proof-of-concept)
 
 Native effect engine + LED panel driver for running Multidisplay on a
-Raspberry Pi driving HUB75 panels directly (via `rpi-led-matrix`), instead
-of a browser computing effects and streaming frames to an ESP32.
-
-Not to be confused with the top-level `pi/` directory in this repo, which
-is unrelated: helper scripts (Bluetooth audio bridge) for a Raspberry Pi
-that's running the *existing browser-based* app as a client, not this
-native rewrite.
+Raspberry Pi driving HUB75 panels directly (via `rpi-led-matrix`).
 
 ## Version bumping
 
@@ -87,11 +81,8 @@ HUB75 panels, and no ARM hardware available**. What that means concretely:
     sandbox to eyeball spatial correctness against, unlike the small math
     effects where numeric range-checking is meaningful confidence. Treat
     the geometry/layout as unverified until you can actually see it.
-  - `easter_egg` — port of the ESP32 firmware's `standaloneRenderEasterEgg`
-    (itself a native port of the browser's hidden image reveal). Verified
-    byte-for-byte against `firmware/src/easter_egg_images.h`'s embedded
-    images and exact-match tested against the source crossfade math at a
-    sampled pixel (`test/easterEgg.test.js`).
+  - `easter_egg` — a port of the original hidden image reveal, tested
+    against the crossfade math at a sampled pixel (`test/easterEgg.test.js`).
 - The WS control/preview server: connect → receive state → send
   `setEffect` → receive correctly-shaped binary preview frames for all 6
   faces, confirmed for all 4 registered effects. See `test/smoke-client.js`
@@ -213,28 +204,24 @@ runtime reconfiguration API, so changing mode there only takes effect
 after a process restart (`app.js` logs a warning when this happens).
 
 Also note: only `size=64` is meaningful with `DRIVER=hardware` -
-`8`/`16` are browser-preview-only resolutions (same as the ESP32 firmware,
-which is hardcoded `PANEL_SIZE=64`); real HUB75 panels are a fixed
+`8`/`16` are browser-preview-only resolutions; real HUB75 panels are a fixed
 physical resolution and `rgbMatrixDriver.js` will throw rather than
 silently misbehave if asked to render a non-64 size.
 
 ## WiFi setup
 
-Mirrors the ESP32 firmware's `WiFiManager` captive-portal flow
-(`firmware/src/wifi_setup.cpp`): every time `app.js` starts, it checks for
+A `WiFiManager`-style captive-portal flow: every time `app.js` starts, it checks for
 a working connection (`src/wifiSetup.js`, via NetworkManager/`nmcli` - the
 default network stack on Raspberry Pi OS Bullseye and later). If none is
-found, it opens its own AP - same credentials as the firmware for
-consistency: SSID `Multidisplay-Setup`, password `cube1234` - and blocks
+found, it opens its own AP - SSID `Multidisplay-Setup`, password `cube1234` - and blocks
 startup until real credentials are submitted through a small web form at
 `http://10.42.0.1/` (NetworkManager's default AP gateway address). The
 instant boot screen is already showing at this point, so real panels
 aren't dark during the wait.
 
-This is a genuinely new subsystem (the browser-based/ESP32 project never
-needed this on the Pi side), not previously scoped work. Unlike a full
+Unlike a full
 captive portal, there's no DNS hijacking to trigger the OS's automatic
-"Sign in to network" popup - same UX as the ESP32's own portal: connect,
+"Sign in to network" popup: connect,
 then manually browse to the address. A DNS redirect (`dnsmasq` on the AP
 interface) would upgrade this to auto-popup, but is a separate, real
 chunk of infrastructure, not built here.
@@ -277,9 +264,7 @@ original Python script's README carried.
 
 The moment `app.js` has a driver constructed, it renders a single solid
 amber fill (`renderBootScreen`) directly to the physical panels -
-synchronously, before the WS server or animation loop exist. This mirrors
-the ESP32 firmware's own pattern (`main.cpp`: "Start the display task
-RIGHT AWAY, before any networking") - real panels should never sit dark
+synchronously, before the WS server or animation loop exist - real panels should never sit dark
 while the rest of the system comes up, however long that ends up taking.
 Nothing needs to explicitly clear it; the first real animation-loop tick
 overwrites it naturally. Verified via a spawned-process test
@@ -325,8 +310,7 @@ to wherever this is deployed) to run it as a boot-time service.
   from the ~900-line render function itself, mirroring how the browser
   source spreads this across several concerns even though it's all one
   file there. `easterEgg/img1.bin`/`img2.bin` are the two embedded 64x64
-  RGB888 images, extracted programmatically from
-  `firmware/src/easter_egg_images.h` (not hand-transcribed).
+  RGB888 images.
 - `src/drivers/` — pluggable LED output backends (`mockDriver.js`,
   `rgbMatrixDriver.js`) behind the shared contract in
   `driverInterface.js`.

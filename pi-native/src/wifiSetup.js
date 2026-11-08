@@ -119,8 +119,7 @@ async function connectToNetwork(ssid, password, runFn = run, fsApi = require('fs
 // ---------------------------------------------------------------------------
 // Captive-portal HTTP server. Deliberately simple (no DNS hijacking to
 // force the OS's automatic "Sign in to network" popup, unlike a full
-// captive-portal implementation) - same UX as the ESP32 firmware's own
-// portal: connect to the AP, then manually browse to its address. A DNS
+// captive-portal implementation): connect to the AP, then manually browse to its address. A DNS
 // redirect (dnsmasq intercepting all queries on the AP interface) would
 // upgrade this to auto-popup, but is a separate, real chunk of additional
 // infrastructure - noted as a possible follow-up, not built here.

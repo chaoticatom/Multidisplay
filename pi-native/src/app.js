@@ -45,11 +45,8 @@ const SINGLE_THREAD_TICK_HZ = 30; // effect-compute + panel-push rate; independe
 const WS_PORT = 8081;
 
 // Solid amber fill, distinct from any real effect's likely palette - a
-// common embedded "still booting" convention (matches the spirit of the
-// ESP32 firmware's boot-time WiFi status icon: something is shown
-// immediately, not left dark, while the rest of the system comes up - see
-// main.cpp's "Start the display task RIGHT AWAY, before any networking"
-// comment). Rendered synchronously, directly to the driver, before the WS
+// common embedded "still booting" convention: something is shown
+// immediately, not left dark, while the rest of the system comes up. Rendered synchronously, directly to the driver, before the WS
 // server or the animation loop exist - so real panels never sit dark
 // during startup, however long driver construction or future async init
 // steps end up taking. The first real animation-loop tick (a JS event-loop
@@ -127,10 +124,9 @@ async function main() {
     renderBootScreen(core, driver);
   }
 
-  // WiFi provisioning, mirroring the ESP32 firmware's WiFiManager captive
+  // WiFi provisioning, a WiFiManager-style captive
   // portal: if there's no working connection, this opens a setup AP and
-  // BLOCKS here until real credentials are submitted through it - matches
-  // the firmware's connectWifi() blocking-until-connected pattern. The
+  // BLOCKS here until real credentials are submitted through it. The
   // boot screen above is already showing, so real panels aren't dark
   // during this wait, however long it takes. Opt out entirely (e.g. local
   // dev on a machine you don't want this touching) with SKIP_WIFI_SETUP=1.
@@ -202,9 +198,8 @@ async function main() {
     // read whatever core.SIZE/faceMap say on the next tick). Note
     // rgbMatrixDriver.js currently hardcodes a SIZE===64 check and will
     // throw on the next renderFrame() if you pick 8/16 with DRIVER=hardware
-    // - those sizes are browser-preview-only concepts (the ESP32 firmware
-    // is hardcoded PANEL_SIZE=64 too; real HUB75 panels are a fixed
-    // physical resolution, they don't "become" an 8x8 panel).
+    // - those sizes are browser-preview-only concepts (real HUB75 panels
+    // are a fixed physical resolution, they don't "become" an 8x8 panel).
     core.resize(newConfig.size);
     // Wall layout (panel count/positions) changes just as freely as size -
     // initWall() only rebuilds JS-side buffers (wallBuf/occupancy mask),

@@ -8,8 +8,6 @@ Multidisplay is an RGB LED display made of 64×64 HUB75 panels, either a 6-face 
 
 **Live demo**: https://chaoticatom.github.io/Multidisplay/ is a browser build of the same pi-native effect engine, bundled via `pi-native/sim/` and running standalone with no Pi behind it. The files at the repo root (`app.js`, `index.html`, `sim-engine.js`, `effects.json`, ...) are **build output** from `sim/deploy.js`. Never hand-edit them.
 
-The older ESP32-S3 + browser architecture (`firmware/`, `docs/`, the old root-level `cube.js`/`ui.js`/`effects-*.js`) is retired. It remains in `firmware/`/`docs/` and git history as reference only. Don't build against it, and treat `docs/` as historical.
-
 ## Working style
 
 Don't test beyond `node --check` on touched files and the `npm test` suite in `pi-native/`. Don't spin up servers, browsers, or do manual verification. The real panels and Bluetooth speaker are only on the user's Pi, so hardware-dependent fixes ship untested and get confirmed by the user.

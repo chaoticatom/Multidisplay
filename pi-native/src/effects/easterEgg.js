@@ -1,22 +1,10 @@
-// Faithful port of the ESP32 firmware's standaloneRenderEasterEgg()
-// (standalone.h) - itself a native port of ui.js's hidden secret-image
-// reveal (size button sequence 8,8,16,64 within 2s). Ported from the
-// firmware's version rather than the browser's directly, since this is the
-// same "no browser in the loop" rendering problem this whole pi-native
-// project exists to solve, and the firmware's version is already a clean,
-// simple, proven reference for it (raw RGB888 crossfade, no DOM/canvas
-// involved) - unlike the weather effect, there was no reason to instead
-// transcribe the (more complex, browser-only) original.
+// Easter Egg: the hidden secret-image reveal (size button sequence
+// 8,8,16,64 within 2s) - a raw RGB888 crossfade between two images.
 //
-// img1.bin/img2.bin are the exact same embedded 64x64 RGB888 images as
-// firmware/src/easter_egg_images.h's EASTER_EGG_IMG1/IMG2 (extracted
-// programmatically from that header, verified byte-for-byte against a
-// spot check of the source - see git history for the extraction script).
-// Same crossfade timing as the firmware: 15s holding image 1, 3s
+// img1.bin/img2.bin are the two embedded 64x64 RGB888 images.
+// Crossfade timing: 15s holding image 1, 3s
 // crossfade, 15s holding image 2, 3s crossfade back, repeat. Shown
-// identically on all 6 faces, matching the firmware's per-face loop (not
-// the browser's single-panel-only reveal, which has no equivalent concept
-// here - there's no "one active panel view" without a browser UI).
+// identically on all 6 faces.
 const fs = require('fs');
 const path = require('path');
 
@@ -46,15 +34,13 @@ function easterEgg(core, dt) {
     const faceMap = core.faceMap[face];
     for (let y = 0; y < S; y++) {
       // img1.bin/img2.bin are standard top-down RGB888 (row 0 = top of
-      // the image, extracted straight from the firmware header) but
+      // the image) but
       // faceMap's row 0 is the BOTTOM (matching cube.js's Y-up 3D
       // convention, same as every other effect that blits a top-down
       // image buffer - see e.g. neo.js's title-card blit or apod.js's
       // image sampling, both of which flip the destination/source row
-      // the same way). This file was missing that flip entirely (a
-      // direct "faithful port" of the firmware's own raw-panel addressing,
-      // which has no such convention to match), which showed up as a
-      // real report: the easter egg displaying upside down.
+      // the same way). Without the flip - a real report - the easter
+      // egg displayed upside down.
       const fy = S - 1 - y;
       for (let x = 0; x < S; x++) {
         const led = faceMap[fy * S + x];

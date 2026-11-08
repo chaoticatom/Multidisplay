@@ -79,8 +79,7 @@ class RgbMatrixDriver {
 
     const SIZE = core.SIZE;
     if (SIZE !== 64) {
-      // 8/16 are browser-preview-only resolutions (the ESP32 firmware is
-      // hardcoded PANEL_SIZE=64 too) - real HUB75 panels are a fixed
+      // 8/16 are browser-preview-only resolutions - real HUB75 panels are a fixed
       // physical resolution, they don't "become" an 8x8 panel. Only 64 is
       // meaningful here.
       throw new Error(`rgbMatrixDriver is hardcoded for 64x64 faces (matrixOptions rows/cols), got SIZE=${SIZE}`);
