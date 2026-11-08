@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireEffectsV2();
   wireMusicV2();
   wireFacePick();
+  wireDeclutter();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();

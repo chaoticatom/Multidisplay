@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.7';
+const APP_VERSION = '0.7.8';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5166,6 +5166,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireEffectsV2();
   wireMusicV2();
   wireFacePick();
+  wireDeclutter();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
@@ -6933,4 +6934,47 @@ function liveTileFrame(face, bytes) {
   const S = Math.round(Math.sqrt((bytes.length - 1) / 3)), W = tile.width, ctx = tile.getContext('2d'), img = ctx.createImageData(W, W), st = S / W;
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) { const v = S - 1 - Math.floor(y * st), u = Math.floor(x * st), o = 1 + (v * S + u) * 3, p = (y * W + x) * 4; img.data[p] = bytes[o]; img.data[p + 1] = bytes[o + 1]; img.data[p + 2] = bytes[o + 2]; img.data[p + 3] = 255; }
   ctx.putImageData(img, 0, 0);
+}
+
+// ── Declutter: the menus with less text. Explanations fold behind an ⓘ you
+// tap to read; long labels keep their first words (the rest is the hover /
+// long-press hint); common slider names become icons. Run once the page is
+// built, and again for panels added later.
+const SLIDER_ICONS = {
+  speed: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>', volume: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  intense: '<path d="M12 2c3 4 5 6.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-5 .5 2 1.5 3 3 3-1-3 0-5 0-8z"/>', density: '<circle cx="6" cy="6" r="2"/><circle cx="14" cy="8" r="2"/><circle cx="9" cy="15" r="2"/><circle cx="18" cy="17" r="2"/>',
+  rate: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>', 'change every': '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>', blend: '<circle cx="9" cy="12" r="6"/><circle cx="15" cy="12" r="6"/>',
+  width: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>', depth: '<path d="M12 2 21 7v10l-9 5-9-5V7z"/>', trail: '<path d="M4 18c4 0 4-6 8-6s4-6 8-6"/>', radius: '<circle cx="12" cy="12" r="9"/><path d="M12 12h9"/>', spin: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+};
+function shortLabel(el) {
+  if (el.dataset.dc) return; el.dataset.dc = '1';
+  const txt = (el.textContent || '').trim(); if (txt.length <= 26) return;
+  const cut = txt.search(/\s[-–—]\s|:\s|\s\(|\. /);
+  if (cut < 4) return;
+  const tn = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim().length > 20); if (!tn) return;
+  el.title = el.title || txt; tn.textContent = txt.slice(0, cut).replace(/^[^\w]*\s/, (m) => m) + ' ';
+}
+function declutter(root = document.getElementById('sidebar-scroll')) {
+  if (!root) return;
+  // Explanations: behind an ⓘ (notes with an id are live status lines - left alone).
+  root.querySelectorAll('.ui-note:not([id]):not([data-dc]), .ui-hint:not([id]):not([data-dc]), .ui-note-spaced:not([id]):not([data-dc])').forEach((n) => {
+    if (n.closest('#nx, #sx, #mx, #face-pick')) return;
+    n.dataset.dc = '1'; n.classList.add('dc-folded');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'dc-info'; b.setAttribute('aria-label', 'More about this'); b.setAttribute('aria-expanded', 'false'); b.textContent = 'i';
+    b.addEventListener('click', () => { const open = n.classList.toggle('dc-open'); b.setAttribute('aria-expanded', String(open)); });
+    n.before(b);
+  });
+  root.querySelectorAll('.ui-label-accent, .ov-row-label, .cx-row > span:first-child, .check-row > span, .ui-check-label').forEach(shortLabel);
+  root.querySelectorAll('.slider-label:not([data-dc])').forEach((l) => {
+    l.dataset.dc = '1';
+    const key = (l.textContent || '').trim().toLowerCase(), ic = SLIDER_ICONS[key];
+    if (!ic) return;
+    l.title = l.textContent.trim(); l.setAttribute('aria-label', l.title); l.innerHTML = svgIcon(ic, 18); l.classList.add('dc-icon');
+  });
+}
+function wireDeclutter() {
+  declutter();
+  // Panels moved into Now, timers and lists re-render: tidy what appears.
+  let pend = false;
+  new MutationObserver(() => { if (pend) return; pend = true; requestAnimationFrame(() => { pend = false; declutter(); }); }).observe(document.getElementById('sidebar-scroll') || document.body, { childList: true, subtree: true });
 }
