@@ -1,5 +1,6 @@
 // Builds public/thumbs.json: a tiny looping animation of every effect
-// (16x16 pixels, 12 frames) for the control page's live effect tiles.
+// (64x64 pixels - one panel's full detail - 8 frames, each effect's frames
+// zlib-compressed, z: 1) for the control page's live effect tiles.
 // Effects run headless here, exactly as on the Pi, with network calls
 // answered by canned data. Run by sim/deploy.js (so `npm run release`).
 'use strict';
@@ -33,7 +34,7 @@ const yieldLoop = () => new Promise((r) => setImmediate(r));
 const { CubeCore } = require(path.join(root, 'src/core'));
 const { WALL_EFFECTS } = require(path.join(root, 'src/effects'));
 
-const S = 16, FRAMES = 12, WARM = 20, STEP = 4;
+const S = 64, FRAMES = 8, WARM = 20, STEP = 6; // full panel detail: 16px looked blocky on the bigger v2 tiles
 const OPTS = { radio: { radio: { spectrumOn: true } }, datetime: { datetime: { mode: 'time' } }, message: { message: { text: 'HELLO', style: 'rainbow' } } };
 
 (async () => {
@@ -62,16 +63,16 @@ const OPTS = { radio: { radio: { spectrumOn: true } }, datetime: { datetime: { m
               const o = ((y * B + dy) * W + x * B + dx) * 3; r += buf[o]; g += buf[o + 1]; b += buf[o + 2];
             }
             const o = f * S * S * 3 + (y * S + x) * 3, n = B * B;
-            // Boost a little: averaging 4x4 blocks dims thin bright detail.
+            // Boost a little: averaging blocks dims thin bright detail.
             bytes[o] = Math.min(255, (r / n) * 330); bytes[o + 1] = Math.min(255, (g / n) * 330); bytes[o + 2] = Math.min(255, (b / n) * 330);
           }
           f++;
         }
       }
     } catch (e) { /* an effect that can't run headless just gets no tile animation */ }
-    if (f === FRAMES) out[key] = Buffer.from(bytes).toString('base64');
+    if (f === FRAMES) out[key] = require('zlib').deflateSync(Buffer.from(bytes), { level: 9 }).toString('base64');
   }
-  fs.writeFileSync(path.join(root, 'public', 'thumbs.json'), JSON.stringify({ size: S, frames: FRAMES, fx: out }));
+  fs.writeFileSync(path.join(root, 'public', 'thumbs.json'), JSON.stringify({ size: S, frames: FRAMES, z: 1, fx: out }));
   console.log('[thumbs] wrote public/thumbs.json (' + Object.keys(out).length + ' effects)');
   process.exit(0);
 })();

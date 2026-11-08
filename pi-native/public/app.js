@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.6';
+const APP_VERSION = '0.7.7';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -5339,10 +5339,10 @@ function cxMoveBlob() {
 // favourites strip and scene tiles.
 let _cxThumbData = null;
 function cxStillThumb(key) {
-  const d = _cxThumbData, b64 = d && d.fx[key];
+  const d = _cxThumbData, raw = d && d.fx[key];
   const cv = document.createElement('canvas'); cv.className = 'cx-mini-thumb';
-  if (!b64) { cv.width = cv.height = 1; return cv; }
-  const S = d.size, raw = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)), off = Math.floor(d.frames / 2) * S * S * 3;
+  if (!raw || typeof raw === 'string') { cv.width = cv.height = 1; return cv; }
+  const S = d.size, off = Math.floor(d.frames / 2) * S * S * 3;
   cv.width = cv.height = S;
   const img = new ImageData(S, S);
   for (let i = 0; i < S * S; i++) { img.data[i * 4] = raw[off + i * 3]; img.data[i * 4 + 1] = raw[off + i * 3 + 1]; img.data[i * 4 + 2] = raw[off + i * 3 + 2]; img.data[i * 4 + 3] = 255; }
@@ -5355,12 +5355,17 @@ async function cxWireTiles() {
   let data;
   // Versioned URL: a new release never shows previews cached from an older one.
   try { data = await (await fetch('thumbs.json?v=' + APP_VERSION)).json(); } catch (e) { return; }
+  // Each effect's frames, unpacked once (zlib-compressed when z is set).
+  await Promise.all(Object.keys(data.fx).map(async (k) => {
+    const bin = Uint8Array.from(atob(data.fx[k]), (ch) => ch.charCodeAt(0));
+    if (!data.z) { data.fx[k] = bin; return; }
+    try { data.fx[k] = new Uint8Array(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer()); } catch (e) { delete data.fx[k]; }
+  }));
   _cxThumbData = data; renderScenes(); cxSyncFavs();
   const S = data.size, F = data.frames, tiles = [];
   document.querySelectorAll('#effects-body .effect-btn[data-effect]').forEach((btn) => {
-    const b64 = data.fx[btn.dataset.effect];
-    if (!b64 || btn.querySelector('.cx-thumb')) return;
-    const raw = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+    const raw = data.fx[btn.dataset.effect];
+    if (!raw || btn.querySelector('.cx-thumb')) return;
     const cv = document.createElement('canvas'); cv.width = cv.height = S; cv.className = 'cx-thumb';
     const label = document.createElement('span'); label.className = 'cx-tile-name';
     label.textContent = btn.textContent.replace(/[◈▸]/g, '').trim();
