@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.10';
+const APP_VERSION = '0.7.11';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -294,6 +294,7 @@ function handleTextMessage(msg) {
     syncLastChange();
     syncStudio();
     syncStudioPhone();
+    syncHome();
     syncNowV2();
     syncEffectsV2();
     syncDayV2();
@@ -3988,7 +3989,10 @@ function toggleMenu() {
   // canvas immediately fills the space the sidebar freed up or reclaimed
   // instead of staying sized for the old layout until the next unrelated
   // resize.
+  document.body.classList.toggle('hm-sheet', menuOpen);
+  setTimeout(resizeRenderer, 30);
   setTimeout(resizeRenderer, 550);
+  if (typeof syncHome === 'function') syncHome();
   if (typeof syncStudioPhone === 'function') syncStudioPhone();
 }
 // Ported verbatim (behavior, not code shape) from ui.js's wireForceUpdate()
@@ -4298,7 +4302,7 @@ function updateWallLayoutButtonState() {
   if (hint) {
     const show = _wallEditMode && currentState.panelMode === 'wall';
     hint.classList.toggle('show', show);
-    if (show) hint.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
+    if (show) { const sb = stageBox(); hint.style.left = ((sb.l + sb.r) / 2) + 'px'; }
   }
 }
 
@@ -4458,8 +4462,9 @@ const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
 // (see rebuildWallPreview()), not the WALL_COLS x WALL_ROWS hardware maximum.
 function wallCellSize(cols, rows) {
   const buf = 40;
-  const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
-  const availH = sheetTopPx() - buf * 2;
+  const sb = stageBox();
+  const availW = sb.r - sb.l - buf * 2;
+  const availH = sb.b - sb.t - buf * 2;
   const cell = Math.min(availW / cols, availH / rows);
   // Up to 900px per panel (was 320): a one- or two-panel wall looked tiny
   // in the middle of a large screen.
@@ -4593,15 +4598,18 @@ function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  // Centre the cube in the space beside an open desktop sidebar (same
-  // reasoning as fitPanel2dCanvas()): shift the rendered view left by half
-  // the sidebar's width, which moves the cube right by that much.
-  const left = sidebarOverlapPx();
-  const sheetGap = h - sheetTopPx(); // phones: keep the cube above the controls sheet
-  if ((left > 0 || sheetGap > 0) && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, -left / 2, sheetGap / 2, w, h);
+  // Centre the cube in the free space (beside an open desktop sidebar,
+  // above a phone's controls, or inside the home layout's cube tile) by
+  // shifting the rendered view; the canvas itself stays full-window.
+  const b = stageBox(), cx = (b.l + b.r) / 2, cy = (b.t + b.b) / 2;
+  const ox = w / 2 - cx, oy = h / 2 - cy;
+  if ((Math.abs(ox) > 0.5 || Math.abs(oy) > 0.5) && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, ox, oy, w, h);
   else if (typeof camera.clearViewOffset === 'function') camera.clearViewOffset();
   camera.updateProjectionMatrix();
   fitCubeCamera(); // no-ops outside cube mode
+  // The home layout shows the cube inside a rounded tile: clip the canvas to it.
+  const cv = renderer.domElement, hs = homeStageRect();
+  cv.style.clipPath = hs ? `inset(${hs.t}px ${w - hs.r}px ${h - hs.b}px ${hs.l}px round 24px)` : '';
 }
 
 // Moves the camera along its original viewing direction just far enough
@@ -4616,7 +4624,11 @@ function fitCubeCamera() {
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const vDist = CUBE_BOUND_RADIUS / Math.sin(vFov / 2);
   const hDist = CUBE_BOUND_RADIUS / Math.sin(hFov / 2);
-  const dist = Math.max(vDist, hDist) * 1.15; // small margin so the cube isn't touching the screen edge
+  // Small margin so the cube isn't touching the edge; inside the home
+  // layout's tile, back off further so it fits the tile, not the window.
+  const hs = homeStageRect();
+  const shrink = hs ? Math.max(1, Math.min(window.innerWidth / Math.max(1, hs.r - hs.l), window.innerHeight / Math.max(1, hs.b - hs.t))) : 1;
+  const dist = Math.max(vDist, hDist) * 1.15 * shrink;
   const pos = CUBE_CAMERA_DIR.clone().multiplyScalar(dist);
   camera.position.copy(pos);
   camera.lookAt(0, 0, 0);
@@ -4639,6 +4651,21 @@ function sheetTopPx() {
   return r && r.width >= window.innerWidth * 0.9 && r.top > 0 && r.top < window.innerHeight - 4 ? r.top : window.innerHeight;
 }
 
+// The home layout (see 98-home.js): the rectangle of the cube tile, or null
+// when that layout isn't showing (tablets, or a phone with the menu open).
+function homeStageRect() {
+  if (!document.body.classList.contains('hm')) return null;
+  const el = document.getElementById('hm-stage');
+  if (!el || !el.offsetParent) return null;
+  if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
+  const r = el.getBoundingClientRect();
+  return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;
+}
+// The free area the preview centres in: {l, t, r, b} in window pixels.
+function stageBox() {
+  return homeStageRect() || { l: sidebarOverlapPx(), t: 0, r: window.innerWidth, b: sheetTopPx() };
+}
+
 function sidebarOverlapPx() {
   const sb = document.getElementById('sidebar');
   const r = sb ? sb.getBoundingClientRect() : null;
@@ -4653,16 +4680,16 @@ function fitPanel2dCanvas() {
   // centre it in the space to the RIGHT of the sidebar instead. (On phones
   // the open sidebar covers the whole screen, so this only matters on
   // desktop.)
-  const left = sidebarOverlapPx();
-  const availW = window.innerWidth - left;
+  const sb = stageBox(), left = sb.l;
+  const availW = sb.r - sb.l;
   // Keep clear of the floating Layout toolbar in the top-right corner
   // (reserved top and bottom, so the panel stays vertically centred).
   const tb = document.getElementById('wall-toolbar');
   const tbr = tb ? tb.getBoundingClientRect() : null;
   const vReserve = tbr && tbr.height > 0 ? Math.max(buf, tbr.bottom + 8) : buf;
-  const availH = sheetTopPx();
+  const availH = sb.b - sb.t;
   const size = Math.max(64, Math.min(availW - buf * 2, availH - vReserve * 2));
-  panel2dCanvas.style.top = (availH / 2) + 'px';
+  panel2dCanvas.style.top = (sb.t + availH / 2) + 'px';
   panel2dCanvas.style.width = size + 'px';
   panel2dCanvas.style.height = size + 'px';
   panel2dCanvas.style.left = (left + availW / 2) + 'px';
@@ -4986,8 +5013,9 @@ function rebuildWallPreview() {
   wallPreviewEl.style.width = (cols * cellSize) + 'px';
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
   // Centre in the space beside an open desktop sidebar (see fitPanel2dCanvas()).
-  wallPreviewEl.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
-  wallPreviewEl.style.top = (sheetTopPx() / 2) + 'px';
+  const sbx = stageBox();
+  wallPreviewEl.style.left = ((sbx.l + sbx.r) / 2) + 'px';
+  wallPreviewEl.style.top = ((sbx.t + sbx.b) / 2) + 'px';
 
   for (const c of allCells) {
     const { gx, gy, filled, shiftX, shiftY } = c;
@@ -5162,6 +5190,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireCoinflipPanel();
   wireFireworksPanel();
   wireStudio();
+  wireHome();
   wireStudioPhone();
   wireNowV2();
   wireSetupV2();
@@ -7121,4 +7150,161 @@ function syncSetupPages() {
     const pl = box.querySelector('.sp-paired');
     if (pl) pl.replaceChildren(...list.filter((d) => !d.connected).map((d) => { const r = document.createElement('div'); r.className = 'sp-line'; const dot = document.createElement('span'); dot.className = 'sp-dot'; const n = document.createElement('span'); n.className = 'sp-grow'; n.textContent = d.name || d.mac; const b = document.createElement('button'); b.type = 'button'; b.className = 'sp-small'; b.textContent = 'Connect'; b.addEventListener('click', () => send({ cmd: 'btSetOutput', mac: d.mac })); r.append(dot, n, b); return r; }));
   }
+}
+// ── Home layout (A + B quiet) ───────────────────────────────────────────
+// Desktop: a search bar on top, the live cube in a big rounded tile, a slim
+// column beside it (thin brightness / volume / speed sliders, five small
+// round buttons, the music strip) and a dock (favourite effects, then All
+// effects, Music, Day, Setup and power). There is no sidebar: each dock
+// button opens that menu as a sheet on the right, Setup opens wide. Phones:
+// search, the cube tile with four small buttons on it, two thin sliders,
+// the music strip and the bottom bar (whose menus open as the bottom sheet).
+// The markup is in index.html (#hm-*); the preview centres the cube in
+// #hm-stage (see homeStageRect() in 90-preview.js).
+
+const HM_DOCK = { effects: 'effects', music: 'music', day: 'day', setup: 'setup' };
+const hmRange = (inp) => { const f = (Number(inp.value) - Number(inp.min)) / (Number(inp.max) - Number(inp.min)); inp.style.setProperty('--f', Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'); };
+const hmVal = {
+  'hm-bright': (v) => Math.round(v / 1.5 * 100),
+  'hm-vol': (v) => Math.round(v * 100),
+  'hm-speed': (v) => v.toFixed(1) + '×',
+};
+// Which menu is showing: the rail entry for the current tab and sub-tab.
+function hmCurrent() {
+  if (!menuOpen) return '';
+  const tab = document.body.dataset.tab || 'play';
+  let sub = ''; try { sub = JSON.parse(localStorage.getItem('subtab') || '{}')[tab] || ''; } catch (e) { /* storage unavailable */ }
+  const r = STUDIO_RAIL.find((x) => x.tab === tab && (!x.sub || x.sub === sub || (x.sub === 'Now' && !sub)));
+  return r ? r.id : '';
+}
+// Open a menu as the sheet; the same button again closes it.
+function hmOpen(id) {
+  const r = STUDIO_RAIL.find((x) => x.id === id); if (!r) return;
+  if (menuOpen && hmCurrent() === id) { toggleMenu(); return; }
+  studioPickSub(r.tab, r.sub);
+  if (!menuOpen) toggleMenu();
+  syncHome();
+}
+function hmAsk(t) { document.getElementById('cx-ask').value = t; cxSubmit(t); }
+
+function wireHome() {
+  if (!document.getElementById('hm-col')) return;
+  document.body.classList.add('hm');
+  // Phones: the first tab is Home (the cube and these controls).
+  const home = STUDIO_RAIL.find((x) => x.id === 'now');
+  if (home) { home.label = 'Home'; home.icon = '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>'; }
+  const ask = document.getElementById('hm-ask');
+  ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { const t = ask.value.trim(); ask.value = ''; hmAsk(t); ask.blur(); } });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && ask.offsetParent) { e.preventDefault(); ask.focus(); }
+    if (e.key === 'Escape' && menuOpen && window.innerWidth >= 1024 && !document.querySelector('.tm-modal:not([hidden])')) toggleMenu();
+  });
+  const cmd = { 'hm-bright': (v) => send({ cmd: 'setBrightness', value: v }), 'hm-vol': (v) => send({ cmd: 'setMasterVolume', value: v }), 'hm-speed': (v) => send({ cmd: 'setSpeed', value: v }) };
+  Object.keys(cmd).forEach((id) => {
+    const inp = document.getElementById(id); let queued = false;
+    inp.addEventListener('input', () => {
+      hmRange(inp); document.getElementById(id + '-v').textContent = hmVal[id](Number(inp.value));
+      if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; cmd[id](Number(inp.value)); }); }
+    });
+  });
+  const quick = {
+    party: () => send({ cmd: 'startParty', minutes: currentState.party ? 0 : 30 }),
+    bed: () => hmAsk('calm bedtime'),
+    note: () => document.getElementById('note-open')?.click(),
+    draw: () => document.getElementById('draw-open')?.click(),
+    fav: () => send({ cmd: 'toggleFavourite', effect: currentState.effect }),
+    power: () => document.getElementById('clear-all-btn')?.click(),
+  };
+  document.querySelectorAll('[data-hq]').forEach((b) => b.addEventListener('click', () => quick[b.dataset.hq]()));
+  document.querySelector('[data-ht="prev"]').addEventListener('click', () => document.getElementById('studio-prev')?.click());
+  document.querySelector('[data-ht="next"]').addEventListener('click', () => document.getElementById('studio-next')?.click());
+  document.querySelector('[data-ht="opts"]').addEventListener('click', () => hmOpen('now'));
+  document.querySelectorAll('[data-hd]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.hd === 'power') quick.power(); else hmOpen(HM_DOCK[b.dataset.hd]);
+  }));
+  document.querySelector('[data-hm="music"]').addEventListener('click', () => hmOpen('music'));
+  // Playing: stop. Nothing playing: open Music to pick something.
+  document.querySelector('[data-hm="play"]').addEventListener('click', () => {
+    if (hmPlaying()) { send({ cmd: 'radioStop' }); if (typeof radioBrowserStop === 'function') radioBrowserStop(); }
+    else hmOpen('music');
+  });
+  // Start on the cube, the menus tucked away.
+  if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
+  document.body.classList.toggle('hm-sheet', menuOpen);
+  window.addEventListener('resize', () => syncHome());
+  setTimeout(resizeRenderer, 50);
+}
+function hmPlaying() {
+  const s = currentState, r = (s.effectStatus && s.effectStatus.radio) || {};
+  return !!((s.dj && s.dj.on && s.dj.now) || r.playing);
+}
+
+const HM_PLAY = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+const HM_MUSIC = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+let _hmFavKey = '', _hmPlayKey = '';
+function syncHome() {
+  if (!document.body.classList.contains('hm')) return;
+  const s = currentState;
+  document.body.classList.toggle('hm-sheet', !!menuOpen);
+  const nm = document.getElementById('hm-name');
+  if (nm) nm.textContent = s.blank ? 'Display off' : (typeof effectNames === 'object' && effectNames && effectNames[s.effect]) || s.effect || '';
+  const vals = { 'hm-bright': s.brightness, 'hm-vol': s.prefs?.volume, 'hm-speed': s.speed };
+  for (const id of Object.keys(vals)) {
+    const inp = document.getElementById(id), v = Number(vals[id]);
+    if (!inp || !Number.isFinite(v) || document.activeElement === inp) continue;
+    inp.value = v; hmRange(inp); document.getElementById(id + '-v').textContent = hmVal[id](v);
+  }
+  // Every menu slider shows its fill too.
+  document.querySelectorAll('#sidebar input[type=range]').forEach(hmRange);
+  const favs = s.prefs?.favourites || [];
+  document.querySelectorAll('[data-hq="fav"]').forEach((b) => b.classList.toggle('on', favs.includes(s.effect)));
+  document.querySelectorAll('[data-hq="party"]').forEach((b) => b.classList.toggle('on', !!s.party));
+  document.querySelectorAll('[data-hq="power"], [data-hd="power"]').forEach((b) => b.classList.toggle('off', !!s.blank));
+  const cur = hmCurrent();
+  document.querySelectorAll('[data-hd]').forEach((b) => { const on = b.dataset.hd !== 'power' && HM_DOCK[b.dataset.hd] === cur; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
+  // Music strip: the same text as the old dock (syncStudio fills it).
+  const t1 = document.getElementById('studio-track'), t2 = document.getElementById('studio-track2');
+  if (t1) { document.getElementById('hm-t1').textContent = t1.textContent; document.getElementById('hm-t2').textContent = t2 ? t2.textContent : ''; }
+  const playing = hmPlaying();
+  if (String(playing) !== _hmPlayKey) {
+    _hmPlayKey = String(playing);
+    const pb = document.querySelector('[data-hm="play"]');
+    pb.innerHTML = playing ? HM_PLAY : HM_MUSIC; pb.setAttribute('aria-label', playing ? 'Stop the music' : 'Choose music');
+    document.querySelector('[data-hm="music"]').classList.toggle('spin', playing);
+  }
+  hmSyncSetup();
+  // Dock: five favourites (or the first effects), the playing one outlined.
+  const box = document.getElementById('hm-favs');
+  if (!box || typeof effectNames !== 'object' || !effectNames) return;
+  const all = Object.keys(effectNames).filter((k) => !['draw', 'custom_cube', 'cam'].includes(k));
+  const keys = [...new Set([...favs.filter((k) => effectNames[k]), ...all])].slice(0, 5);
+  const key = JSON.stringify([keys, s.effect, typeof _cxThumbData !== 'undefined' && !!_cxThumbData]);
+  if (key === _hmFavKey) return;
+  _hmFavKey = key;
+  box.replaceChildren(...keys.map((k) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'hm-fav' + (k === s.effect ? ' on' : '');
+    b.title = effectNames[k]; b.setAttribute('aria-label', effectNames[k]);
+    b.append(cxStillThumb(k)); b.addEventListener('click', () => send({ cmd: 'setEffect', effect: k }));
+    return b;
+  }));
+}
+// Setup tiles: a word of status under each name.
+function hmSyncSetup() {
+  const s = currentState, grid = document.querySelector('#sx .sx-grid'); if (!grid) return;
+  const btOn = typeof btPairedCache !== 'undefined' && (btPairedCache || []).some((x) => x.connected);
+  const st = {
+    panels: [s.panelMode === 'wall' ? 'Wall' : s.panelMode === '2d' ? 'One panel' : 'Cube', false],
+    look: [{ auto: 'Auto', smooth: 'Smooth', detailed: 'Detailed' }[s.prefs?.quality || 'auto'], false],
+    speaker: [btOn ? 'Connected' : 'Not connected', btOn],
+    alexa: [s.alexa?.on ? 'On' : 'Off', !!s.alexa?.on],
+    pin: [s.controlPinSet ? 'Set' : 'Off', !!s.controlPinSet],
+  };
+  grid.querySelectorAll('[data-sx]').forEach((b) => {
+    const v = st[b.dataset.sx]; let sm = b.querySelector('small');
+    if (!v) { if (sm) sm.remove(); return; }
+    const lab = b.querySelector(':scope > span'); if (!lab) return;
+    if (!sm) { sm = document.createElement('small'); lab.append(sm); }
+    if (sm.textContent !== v[0]) sm.textContent = v[0];
+    sm.classList.toggle('ok', v[1]);
+  });
 }

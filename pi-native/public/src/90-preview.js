@@ -16,8 +16,9 @@ const wallPanelCanvases = {}; // panel index -> {canvas, ctx}
 // (see rebuildWallPreview()), not the WALL_COLS x WALL_ROWS hardware maximum.
 function wallCellSize(cols, rows) {
   const buf = 40;
-  const availW = window.innerWidth - sidebarOverlapPx() - buf * 2;
-  const availH = sheetTopPx() - buf * 2;
+  const sb = stageBox();
+  const availW = sb.r - sb.l - buf * 2;
+  const availH = sb.b - sb.t - buf * 2;
   const cell = Math.min(availW / cols, availH / rows);
   // Up to 900px per panel (was 320): a one- or two-panel wall looked tiny
   // in the middle of a large screen.
@@ -151,15 +152,18 @@ function resizeRenderer() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  // Centre the cube in the space beside an open desktop sidebar (same
-  // reasoning as fitPanel2dCanvas()): shift the rendered view left by half
-  // the sidebar's width, which moves the cube right by that much.
-  const left = sidebarOverlapPx();
-  const sheetGap = h - sheetTopPx(); // phones: keep the cube above the controls sheet
-  if ((left > 0 || sheetGap > 0) && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, -left / 2, sheetGap / 2, w, h);
+  // Centre the cube in the free space (beside an open desktop sidebar,
+  // above a phone's controls, or inside the home layout's cube tile) by
+  // shifting the rendered view; the canvas itself stays full-window.
+  const b = stageBox(), cx = (b.l + b.r) / 2, cy = (b.t + b.b) / 2;
+  const ox = w / 2 - cx, oy = h / 2 - cy;
+  if ((Math.abs(ox) > 0.5 || Math.abs(oy) > 0.5) && typeof camera.setViewOffset === 'function') camera.setViewOffset(w, h, ox, oy, w, h);
   else if (typeof camera.clearViewOffset === 'function') camera.clearViewOffset();
   camera.updateProjectionMatrix();
   fitCubeCamera(); // no-ops outside cube mode
+  // The home layout shows the cube inside a rounded tile: clip the canvas to it.
+  const cv = renderer.domElement, hs = homeStageRect();
+  cv.style.clipPath = hs ? `inset(${hs.t}px ${w - hs.r}px ${h - hs.b}px ${hs.l}px round 24px)` : '';
 }
 
 // Moves the camera along its original viewing direction just far enough
@@ -174,7 +178,11 @@ function fitCubeCamera() {
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
   const vDist = CUBE_BOUND_RADIUS / Math.sin(vFov / 2);
   const hDist = CUBE_BOUND_RADIUS / Math.sin(hFov / 2);
-  const dist = Math.max(vDist, hDist) * 1.15; // small margin so the cube isn't touching the screen edge
+  // Small margin so the cube isn't touching the edge; inside the home
+  // layout's tile, back off further so it fits the tile, not the window.
+  const hs = homeStageRect();
+  const shrink = hs ? Math.max(1, Math.min(window.innerWidth / Math.max(1, hs.r - hs.l), window.innerHeight / Math.max(1, hs.b - hs.t))) : 1;
+  const dist = Math.max(vDist, hDist) * 1.15 * shrink;
   const pos = CUBE_CAMERA_DIR.clone().multiplyScalar(dist);
   camera.position.copy(pos);
   camera.lookAt(0, 0, 0);
@@ -197,6 +205,21 @@ function sheetTopPx() {
   return r && r.width >= window.innerWidth * 0.9 && r.top > 0 && r.top < window.innerHeight - 4 ? r.top : window.innerHeight;
 }
 
+// The home layout (see 98-home.js): the rectangle of the cube tile, or null
+// when that layout isn't showing (tablets, or a phone with the menu open).
+function homeStageRect() {
+  if (!document.body.classList.contains('hm')) return null;
+  const el = document.getElementById('hm-stage');
+  if (!el || !el.offsetParent) return null;
+  if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
+  const r = el.getBoundingClientRect();
+  return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;
+}
+// The free area the preview centres in: {l, t, r, b} in window pixels.
+function stageBox() {
+  return homeStageRect() || { l: sidebarOverlapPx(), t: 0, r: window.innerWidth, b: sheetTopPx() };
+}
+
 function sidebarOverlapPx() {
   const sb = document.getElementById('sidebar');
   const r = sb ? sb.getBoundingClientRect() : null;
@@ -211,16 +234,16 @@ function fitPanel2dCanvas() {
   // centre it in the space to the RIGHT of the sidebar instead. (On phones
   // the open sidebar covers the whole screen, so this only matters on
   // desktop.)
-  const left = sidebarOverlapPx();
-  const availW = window.innerWidth - left;
+  const sb = stageBox(), left = sb.l;
+  const availW = sb.r - sb.l;
   // Keep clear of the floating Layout toolbar in the top-right corner
   // (reserved top and bottom, so the panel stays vertically centred).
   const tb = document.getElementById('wall-toolbar');
   const tbr = tb ? tb.getBoundingClientRect() : null;
   const vReserve = tbr && tbr.height > 0 ? Math.max(buf, tbr.bottom + 8) : buf;
-  const availH = sheetTopPx();
+  const availH = sb.b - sb.t;
   const size = Math.max(64, Math.min(availW - buf * 2, availH - vReserve * 2));
-  panel2dCanvas.style.top = (availH / 2) + 'px';
+  panel2dCanvas.style.top = (sb.t + availH / 2) + 'px';
   panel2dCanvas.style.width = size + 'px';
   panel2dCanvas.style.height = size + 'px';
   panel2dCanvas.style.left = (left + availW / 2) + 'px';
@@ -544,8 +567,9 @@ function rebuildWallPreview() {
   wallPreviewEl.style.width = (cols * cellSize) + 'px';
   wallPreviewEl.style.height = (rows * cellSize) + 'px';
   // Centre in the space beside an open desktop sidebar (see fitPanel2dCanvas()).
-  wallPreviewEl.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
-  wallPreviewEl.style.top = (sheetTopPx() / 2) + 'px';
+  const sbx = stageBox();
+  wallPreviewEl.style.left = ((sbx.l + sbx.r) / 2) + 'px';
+  wallPreviewEl.style.top = ((sbx.t + sbx.b) / 2) + 'px';
 
   for (const c of allCells) {
     const { gx, gy, filled, shiftX, shiftY } = c;

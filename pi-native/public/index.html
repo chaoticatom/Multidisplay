@@ -1639,6 +1639,125 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .sp-dot { width: 8px; height: 8px; border-radius: 50%; background: #6B7487; flex-shrink: 0; }
 .sp-small { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #2A3242; background: #141A25; color: #7FE6FF; font: 500 12px Inter, sans-serif; cursor: pointer; }
 .sp-cta { height: 56px; border-radius: 16px; border: 0; background: #7FE6FF; color: #0A0C11; font: 600 15px Inter, sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+
+/* ── Home layout (A + B quiet) - see public/src/98-home.js. Desktop: the
+   cube in a big rounded tile, a slim column of quiet controls beside it,
+   a search bar on top and a dock below; every menu opens as a sheet on the
+   right (Setup opens wide). Phones: search, the cube tile, thin sliders,
+   the music strip and the bottom bar; menus open as the bottom sheet. ── */
+#hm-spot, #hm-stage, #hm-over, #hm-col, #hm-dock { display: none; }
+.hm-sl { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.hm-sl-i { color: var(--c); display: grid; place-items: center; flex-shrink: 0; }
+.hm-sl b { font: 600 13px 'Space Grotesk', Inter, sans-serif; color: #B9C2D3; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+/* Thin sliders: a 4px line filled in the control's colour, a small white knob. */
+.hm-sl input[type=range], body.hm #sidebar input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 16px; margin: 0; background: transparent; cursor: pointer; --f: 50%; }
+.hm-sl input[type=range]::-webkit-slider-runnable-track, body.hm #sidebar input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--c, #7FE6FF) var(--f), #20262F var(--f)); }
+.hm-sl input[type=range]::-moz-range-track, body.hm #sidebar input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: #20262F; }
+.hm-sl input[type=range]::-moz-range-progress, body.hm #sidebar input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--c, #7FE6FF); }
+.hm-sl input[type=range]::-webkit-slider-thumb, body.hm #sidebar input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: #E8ECF4; border: 0; box-shadow: 0 1px 4px #0008; }
+.hm-sl input[type=range]::-moz-range-thumb, body.hm #sidebar input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #E8ECF4; border: 0; }
+.hm-q { width: 44px; height: 44px; border-radius: 50%; border: 1px solid #232A38; background: #0D1118; color: var(--c); display: grid; place-items: center; cursor: pointer; padding: 0; transition: background .15s, border-color .15s; }
+.hm-q:hover { border-color: #3A4458; background: #121823; }
+.hm-q.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, #0D1118); }
+.hm-card { border-radius: 20px; background: #0D1118; border: 1px solid #171C26; }
+.hm-t { width: 40px; height: 40px; border-radius: 12px; border: 0; background: rgba(255,255,255,0.08); color: #E8ECF4; display: grid; place-items: center; cursor: pointer; pointer-events: auto; }
+.hm-t:hover { background: rgba(255,255,255,0.14); }
+.hm-music { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.hm-disc { width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; flex-shrink: 0; cursor: pointer; background: radial-gradient(circle, #FFB86B 0 16%, #1A2130 17% 58%, #232B3A 59%); }
+.hm-disc.spin { animation: hm-spin 4s linear infinite; }
+@keyframes hm-spin { to { transform: rotate(360deg); } }
+.hm-track { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+#hm-t1 { font-weight: 600; font-size: 14px; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hm-t2 { font-size: 12px; color: #8892A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hm-play { width: 36px; height: 36px; border-radius: 50%; border: 0; background: #E8ECF4; color: #0A0C11; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; padding: 0; }
+#hm-name { position: absolute; font: 600 28px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 12px #000a; }
+.hm-tbtns { position: absolute; display: flex; gap: 8px; }
+.hm-mquick { display: none; }
+
+@media (min-width: 1024px) {
+  body.hm { --hm-col: 300px; --hm-sheet: 440px; --hm-top: 96px; --hm-bot: 118px; }
+  body.hm #studio-rail, body.hm #studio-head, body.hm #studio-map, body.hm #studio-transport, body.hm #studio-dock, body.hm #sidebar-open-btn, body.hm #sidebar-brightness-bar, body.hm #hint { display: none !important; }
+  body.hm #hm-spot { display: flex; position: fixed; left: 50%; top: 22px; transform: translateX(-50%); width: min(560px, 50vw); height: 52px; z-index: 30; align-items: center; gap: 12px; padding: 0 16px; border-radius: 16px; background: #11161F; border: 1px solid #232A38; box-sizing: border-box; color: #7FE6FF; }
+  #hm-spot input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: #E8ECF4; font: 15px Inter, system-ui, sans-serif; }
+  #hm-spot kbd { font: 11px Inter, sans-serif; color: #8892A6; border: 1px solid #2A3242; border-radius: 6px; padding: 2px 6px; }
+  body.hm #hm-stage { display: block; position: fixed; left: 28px; top: var(--hm-top); bottom: var(--hm-bot); right: calc(28px + var(--hm-col) + 16px); z-index: 0; border-radius: 28px; background: radial-gradient(circle at 50% 45%, #122033, #0B0F17 70%); border: 1px solid #1A2130; }
+  body.hm.hm-sheet #hm-stage, body.hm.hm-sheet #hm-over { right: calc(28px + var(--hm-sheet) + 16px); }
+  body.hm #hm-over { display: block; position: fixed; left: 28px; top: var(--hm-top); bottom: var(--hm-bot); right: calc(28px + var(--hm-col) + 16px); z-index: 6; border-radius: 28px; box-shadow: inset 0 0 0 1px #1A2130; pointer-events: none; }
+  #hm-name { left: 24px; bottom: 20px; max-width: calc(100% - 200px); }
+  .hm-tbtns { right: 20px; bottom: 18px; }
+  body.hm #hm-col { display: flex; position: fixed; right: 28px; top: var(--hm-top); bottom: var(--hm-bot); width: var(--hm-col); z-index: 20; flex-direction: column; gap: 12px; }
+  .hm-sliders { padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+  .hm-quick { display: flex; justify-content: space-between; padding: 0 4px; }
+  .hm-fill { flex: 1; }
+  body.hm #hm-dock { display: flex; position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 30; align-items: center; gap: 8px; padding: 8px; border-radius: 24px; background: rgba(17,22,31,0.94); border: 1px solid #232A38; }
+  #hm-favs { display: flex; gap: 8px; }
+  .hm-fav { width: 64px; height: 52px; border-radius: 14px; border: 2px solid transparent; padding: 0; overflow: hidden; background: #0F141D; cursor: pointer; }
+  .hm-fav canvas { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: auto; }
+  .hm-fav.on { border-color: #7FE6FF; }
+  .hm-sep { width: 1px; height: 32px; background: #2A3242; margin: 0 6px; }
+  .hm-d { width: 48px; height: 48px; border-radius: 14px; border: 0; background: transparent; color: #B9C2D3; display: grid; place-items: center; cursor: pointer; padding: 0; }
+  .hm-d:hover { background: #1A2130; }
+  .hm-d.on { background: rgba(127,230,255,0.12); color: #7FE6FF; }
+  .hm-pwr { color: #5EE08A; } .hm-pwr.off { color: #FF8A8A; }
+  /* Menus: a sheet on the right instead of a sidebar. */
+  body.hm #sidebar { position: fixed !important; top: var(--hm-top) !important; bottom: var(--hm-bot) !important; right: 28px !important; left: auto !important; height: auto !important; width: var(--hm-sheet) !important; min-width: 0 !important; margin: 0 !important; z-index: 40; border-radius: 24px; border: 1px solid #171C26 !important; overflow: hidden; box-shadow: 0 20px 60px #000a; transition: none !important; }
+  body.hm #sidebar.hidden { display: none !important; }
+  body.hm.hm-sheet[data-tab="setup"] #sidebar { left: 28px !important; width: auto !important; }
+  body.hm.hm-sheet[data-tab="setup"] #hm-col { visibility: hidden; }
+  body.hm #sidebar-collapse-btn { font-size: 0 !important; position: relative; }
+  body.hm #sidebar-collapse-btn::after { content: '✕'; font-size: 14px; }
+  /* Setup, wide: gauges in a strip, the tiles in a 3 × 3 grid. */
+  body.hm[data-tab="setup"] #sx { display: grid; grid-template-columns: 1fr auto; gap: 16px; }
+  body.hm[data-tab="setup"] .sx-gauges { display: flex; gap: 28px; padding: 14px 20px; border-radius: 20px; background: #0D1118; border: 1px solid #171C26; }
+  body.hm[data-tab="setup"] .sx-g { flex-direction: row; padding: 0; border: 0; background: none; gap: 10px; font-size: 12px; }
+  body.hm[data-tab="setup"] .sx-ring { width: 46px; height: 46px; } body.hm[data-tab="setup"] .sx-ring b { width: 38px; height: 38px; font-size: 13px; }
+  body.hm[data-tab="setup"] .sx-actions { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+  body.hm[data-tab="setup"] .sx-actions button { width: 44px; height: 44px; border-radius: 50%; padding: 0; background: #0D1118; border: 1px solid #232A38; }
+  body.hm[data-tab="setup"] .sx-actions button span { display: none; }
+  body.hm[data-tab="setup"] .sx-grid { grid-column: 1 / -1; }
+  body.hm[data-tab="setup"] .sx-grid button { aspect-ratio: auto; height: 150px; }
+}
+
+/* Setup tiles everywhere: icon top-left, name and status bottom-left. */
+body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
+body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
+body.hm .sx-grid button > span { display: flex; flex-direction: column; gap: 2px; font-weight: 600; font-size: 14px; }
+body.hm .sx-grid button small { font: 400 12px Inter, sans-serif; color: #8892A6; display: flex; align-items: center; gap: 5px; }
+body.hm .sx-grid button small.ok::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #5EE08A; box-shadow: 0 0 6px #5EE08A; }
+body.hm .sx-grid .sx-dot { display: none; }
+
+/* Every menu screen in the quiet look: flat dark cards, thin lines, the
+   accent kept for what's on. */
+body.hm #sidebar { background: #090C12 !important; }
+body.hm #sidebar .effect-panel, body.hm #sidebar .sub-head, body.hm #sidebar .mx-fold, body.hm #sidebar .mx-row-btn, body.hm #sidebar .sx-g, body.hm #sidebar .dgroup { background: #0D1118 !important; border: 1px solid #171C26 !important; box-shadow: none !important; border-radius: 18px; }
+body.hm #sidebar button.ui-btn-small, body.hm #sidebar .ui-btn, body.hm #sidebar .retro-game-btn { background: #0D1118 !important; border-color: #232A38 !important; }
+body.hm #sidebar .ui-btn-primary { background: #E8ECF4 !important; color: #0A0C11 !important; }
+body.hm #sidebar .subtab-bar { background: #0D1118; border-color: #171C26; }
+body.hm #sidebar .subtab-bar button.on { background: rgba(127,230,255,0.12); color: #7FE6FF; box-shadow: none; }
+body.hm #sidebar .section-head { background: transparent !important; border: 0 !important; }
+body.hm #sidebar-header { background: transparent !important; border-bottom: 1px solid #171C26 !important; }
+
+@media (max-width: 768px) {
+  body.hm { --hm-tabs: calc(64px + env(safe-area-inset-bottom, 0px)); }
+  body.hm #studio-mhead, body.hm #studio-mnow, body.hm #sidebar-brightness-bar, body.hm #hint { display: none !important; }
+  body.hm #hm-spot { display: flex; position: fixed; left: 14px; right: 14px; top: calc(16px + env(safe-area-inset-top, 0px)); height: 46px; z-index: 8; align-items: center; gap: 10px; padding: 0 14px; border-radius: 14px; background: #11161F; border: 1px solid #232A38; box-sizing: border-box; color: #7FE6FF; }
+  #hm-spot input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: #E8ECF4; font: 16px Inter, system-ui, sans-serif; }
+  #hm-spot kbd { display: none; }
+  body.hm #hm-stage { display: block; position: fixed; left: 14px; right: 14px; top: calc(74px + env(safe-area-inset-top, 0px)); bottom: calc(var(--hm-tabs) + 176px); z-index: 0; border-radius: 24px; background: radial-gradient(circle at 50% 45%, #122033, #0B0F17 70%); border: 1px solid #1A2130; }
+  body.hm #hm-over { display: block; position: fixed; left: 14px; right: 14px; top: calc(74px + env(safe-area-inset-top, 0px)); bottom: calc(var(--hm-tabs) + 176px); z-index: 6; border-radius: 24px; box-shadow: inset 0 0 0 1px #1A2130; pointer-events: none; }
+  #hm-name { left: 16px; bottom: 12px; font-size: 20px; max-width: calc(100% - 32px); }
+  .hm-tbtns { display: none; }
+  .hm-mquick { display: flex; flex-direction: column; gap: 8px; position: absolute; right: 12px; top: 12px; }
+  .hm-mquick .hm-q { width: 38px; height: 38px; background: rgba(13,17,24,0.8); border-color: #2A3242; pointer-events: auto; }
+  body.hm #hm-col { display: flex; flex-direction: column; gap: 12px; position: fixed; left: 14px; right: 14px; bottom: calc(var(--hm-tabs) + 12px); z-index: 8; }
+  .hm-sliders .hm-sl:nth-child(3) { display: none; }
+  .hm-sliders { padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+  .hm-quick, .hm-fill { display: none; }
+  .hm-music { padding: 10px 12px; }
+  .hm-disc { width: 38px; height: 38px; }
+  .hm-play { width: 34px; height: 34px; }
+  body.hm.hm-sheet #hm-col, body.hm.hm-sheet #hm-over, body.hm.hm-sheet #hm-stage, body.hm.hm-sheet #hm-spot { visibility: hidden; }
+}
 </style>
 </head>
 <body>
@@ -3351,6 +3470,21 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="studio-mplayer"><span class="studio-disc" aria-hidden="true"></span><div class="studio-track"><span id="studio-mtrack">Nothing playing</span><span id="studio-mtrack2"></span></div><button type="button" id="studio-mstop" class="studio-round" aria-label="Stop the music"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button></div>
 </section>
 <nav id="studio-tabs" aria-label="Main"></nav>
+<!-- Home layout (A + B quiet): see public/src/98-home.js. -->
+<div id="hm-spot"><span class="hm-spot-i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><label for="hm-ask" class="studio-sr">Search or ask</label><input id="hm-ask" type="text" placeholder="Search or ask: “rain”, “bedtime”, “volume 50”" autocomplete="off"><kbd>Ctrl K</kbd></div>
+<div id="hm-stage" aria-hidden="true"></div>
+<section id="hm-over" aria-label="Live cube">
+  <span id="hm-name">&nbsp;</span>
+  <span class="hm-tbtns"><button type="button" class="hm-t" data-ht="prev" aria-label="Previous effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg></button><button type="button" class="hm-t" data-ht="opts" aria-label="Effect options"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button><button type="button" class="hm-t" data-ht="next" aria-label="Next effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></span>
+  <span class="hm-mquick"><button type="button" class="hm-q" data-hq="party" aria-label="Party" title="Party" style="--c:#FF9EC4"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.8 11.3 2 22l10.7-3.8"/><path d="M8.6 8.6l6.8 6.8"/><path d="M14 4l1-2M20 10l2-1M18 5l2-2"/></svg></button><button type="button" class="hm-q" data-hq="bed" aria-label="Bedtime" title="Bedtime" style="--c:#C9D1FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button><button type="button" class="hm-q" data-hq="note" aria-label="Message" title="Message" style="--c:#7FE6FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg></button><button type="button" class="hm-q" data-hq="power" aria-label="Power" title="Power" style="--c:#5EE08A"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/></svg></button></span>
+</section>
+<aside id="hm-col" aria-label="Controls">
+  <div class="hm-card hm-sliders"><label class="hm-sl" style="--c:#FFD24C"><span class="hm-sl-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/></svg></span><span class="studio-sr">Brightness</span><input type="range" id="hm-bright" min="0.1" max="1.5" step="0.05"><b id="hm-bright-v"></b></label><label class="hm-sl" style="--c:#7FE6FF"><span class="hm-sl-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></span><span class="studio-sr">Volume</span><input type="range" id="hm-vol" min="0" max="1" step="0.01"><b id="hm-vol-v"></b></label><label class="hm-sl" style="--c:#C9A6FF"><span class="hm-sl-i"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span><span class="studio-sr">Speed</span><input type="range" id="hm-speed" min="0.1" max="3" step="0.05"><b id="hm-speed-v"></b></label></div>
+  <div class="hm-quick"><button type="button" class="hm-q" data-hq="party" aria-label="Party" title="Party" style="--c:#FF9EC4"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.8 11.3 2 22l10.7-3.8"/><path d="M8.6 8.6l6.8 6.8"/><path d="M14 4l1-2M20 10l2-1M18 5l2-2"/></svg></button><button type="button" class="hm-q" data-hq="bed" aria-label="Bedtime" title="Bedtime" style="--c:#C9D1FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button><button type="button" class="hm-q" data-hq="note" aria-label="Message" title="Message" style="--c:#7FE6FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg></button><button type="button" class="hm-q" data-hq="draw" aria-label="Draw" title="Draw" style="--c:#C9A6FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18z"/></svg></button><button type="button" class="hm-q" data-hq="fav" aria-label="Favourite" title="Favourite" style="--c:#FFD24C"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg></button></div>
+  <div class="hm-fill"></div>
+  <section class="hm-card hm-music" aria-label="Music"><button type="button" class="hm-disc" data-hm="music" aria-label="Open Music"></button><div class="hm-track"><span id="hm-t1">Nothing playing</span><span id="hm-t2"></span></div><button type="button" class="hm-play" data-hm="play" aria-label="Music"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button></section>
+</aside>
+<nav id="hm-dock" aria-label="Dock"><div id="hm-favs"></div><span class="hm-sep"></span><button type="button" class="hm-d" data-hd="effects" aria-label="All effects" title="All effects"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button><button type="button" class="hm-d" data-hd="music" aria-label="Music" title="Music"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="hm-d" data-hd="day" aria-label="Day" title="Day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button><button type="button" class="hm-d" data-hd="setup" aria-label="Setup" title="Setup"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></button><button type="button" class="hm-d hm-pwr" data-hd="power" aria-label="Display on or off" title="Display on or off"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/></svg></button></nav>
 <div id="canvas-wrap">
   <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
   <div id="webgl-fallback" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:340px;text-align:center;color:#9ab;font-size:14px;line-height:1.6;padding:20px;">
@@ -3402,6 +3536,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.10"></script>
+<script src="app.js?v=0.7.11"></script>
 </body>
 </html>

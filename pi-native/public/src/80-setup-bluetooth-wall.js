@@ -57,7 +57,10 @@ function toggleMenu() {
   // canvas immediately fills the space the sidebar freed up or reclaimed
   // instead of staying sized for the old layout until the next unrelated
   // resize.
+  document.body.classList.toggle('hm-sheet', menuOpen);
+  setTimeout(resizeRenderer, 30);
   setTimeout(resizeRenderer, 550);
+  if (typeof syncHome === 'function') syncHome();
   if (typeof syncStudioPhone === 'function') syncStudioPhone();
 }
 // Ported verbatim (behavior, not code shape) from ui.js's wireForceUpdate()
@@ -367,7 +370,7 @@ function updateWallLayoutButtonState() {
   if (hint) {
     const show = _wallEditMode && currentState.panelMode === 'wall';
     hint.classList.toggle('show', show);
-    if (show) hint.style.left = (sidebarOverlapPx() + (window.innerWidth - sidebarOverlapPx()) / 2) + 'px';
+    if (show) { const sb = stageBox(); hint.style.left = ((sb.l + sb.r) / 2) + 'px'; }
   }
 }
 
