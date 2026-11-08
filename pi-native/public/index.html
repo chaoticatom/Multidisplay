@@ -1510,6 +1510,29 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .day-bar > div { display: flex; align-items: flex-end; padding: 6px; font: 500 11px Inter, sans-serif; min-width: 0; overflow: hidden; }
 .day-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #E8ECF4; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
 .day-ticks { display: flex; justify-content: space-between; font-size: 11px; color: #6B7487; margin-top: 4px; }
+
+/* ── Menus v2: Music player card (see wireMusicV2) ── */
+#mx { display: flex; flex-direction: column; gap: 12px; margin: 0 0 14px; padding: 14px; border-radius: 20px; background: #0F141D; border: 1px solid #1F2633; }
+.mx-top { display: flex; align-items: center; gap: 12px; }
+.mx-disc { width: 64px; height: 64px; flex-shrink: 0; border-radius: 50%; background: radial-gradient(circle, #FFB86B 0 16%, #1A2130 17% 58%, #232B3A 59% 100%); }
+#mx.live .mx-disc { animation: mxspin 4s linear infinite; }
+@keyframes mxspin { to { transform: rotate(360deg); } }
+.mx-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 2px; }
+.mx-kicker { font: 600 10px Inter, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; color: #7FE6FF; }
+.mx-title { font: 600 16px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-sub { font-size: 12px; color: #8892A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-play { width: 52px; height: 52px; flex-shrink: 0; border-radius: 50%; border: 0; background: #7FE6FF; color: #0A0C11; display: grid; place-items: center; cursor: pointer; }
+.mx-play .i-stop { display: none; } #mx.live .mx-play .i-stop { display: block; } #mx.live .mx-play .i-play { display: none; }
+.mx-seek { position: relative; display: block; width: 100%; height: 8px; border-radius: 4px; border: 0; padding: 0; background: #232A38; cursor: pointer; overflow: hidden; }
+.mx-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #7FE6FF, #A6EEFF); border-radius: 4px; transition: width .5s linear; }
+.mx-times { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 11px; color: #8892A6; }
+.mx-next { color: #FF9EC4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; flex: 1; }
+.mx-queue { display: flex; flex-direction: column; gap: 6px; }
+.mx-queue:empty { display: none; }
+.mx-q { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 12px; border: 1px solid #1F2633; background: #11161F; color: #E8ECF4; text-align: left; cursor: pointer; font: 500 13px Inter, sans-serif; }
+.mx-q b { width: 18px; color: #6B7487; font-weight: 600; }
+.mx-q span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx-q.next { border-color: #FF9EC4; } .mx-q.next b { color: #FF9EC4; }
 </style>
 </head>
 <body>
@@ -2424,6 +2447,13 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   <div class="sidebar-section" id="music-section" data-tab="music">
     <button class="section-head">◈ Music <span class="chev">▾</span></button>
     <div class="section-body">
+      <!-- Menus v2: the player card - see wireMusicV2() in public/src/97-studio.js. -->
+      <div id="mx">
+        <div class="mx-top"><span class="mx-disc" aria-hidden="true"></span><div class="mx-meta"><span class="mx-kicker"></span><span class="mx-title"></span><span class="mx-sub"></span></div>
+          <button type="button" data-mx="play" class="mx-play"><svg class="i-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><svg class="i-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg></button></div>
+        <div class="mx-seek-row"><button type="button" data-mx="seek" class="mx-seek" aria-label="Jump within the song"><span class="mx-fill"></span></button><div class="mx-times"><span data-mx="t0"></span><span class="mx-next"></span><span data-mx="t1"></span></div></div>
+        <div class="mx-queue" aria-label="Up next"></div>
+      </div>
       <!-- Music tab: one player on top (radio or Auto-DJ), then three tabs -
            Radio, Auto-DJ, Sound. Everything sits inside #panel-radio, which
            50-radio-audio.js looks its controls up in. The spectrum's display
@@ -3258,6 +3288,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.3"></script>
+<script src="app.js?v=0.7.4"></script>
 </body>
 </html>

@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireNowV2();
   wireSetupV2();
   wireEffectsV2();
+  wireMusicV2();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();

@@ -301,3 +301,59 @@ function syncDayV2() {
   const now = new Date(), h = now.getHours() + now.getMinutes() / 60, line = document.createElement('i'); line.className = 'day-now'; line.style.left = (h / 24 * 100) + '%';
   bar.append(line);
 }
+
+// ── Menus v2: Music. One player card on top: the Auto-DJ's track (or the
+// radio station), its progress with the next track lined up in pink, big
+// controls, and the next few songs (tap one to play it next).
+const fmtT = (s) => (Number.isFinite(s) && s >= 0 ? Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') : '');
+function wireMusicV2() {
+  const box = document.getElementById('mx'); if (!box) return;
+  box.querySelector('[data-mx="play"]').addEventListener('click', () => {
+    const dj = currentState.dj, r = currentState.effectStatus?.radio;
+    if ((dj && dj.on) || (r && r.playing)) { send({ cmd: 'radioStop' }); if (typeof radioBrowserStop === 'function') radioBrowserStop(); }
+    else send({ cmd: 'djStart' });
+  });
+  box.querySelector('[data-mx="seek"]').addEventListener('click', (e) => {
+    const n = currentState.dj?.now; if (!n || !n.dur) return;
+    const r = e.currentTarget.getBoundingClientRect(); send({ cmd: 'djSeek', sec: (e.clientX - r.left) / r.width * n.dur });
+  });
+  setInterval(tickMusicV2, 500);
+}
+function tickMusicV2() {
+  const box = document.getElementById('mx'); if (!box || box.offsetParent === null) return;
+  const n = currentState.dj?.on ? currentState.dj.now : null;
+  const pos = n ? Math.min(n.dur, n.pos + (Date.now() - (n.at || Date.now())) / 1000) : 0;
+  box.querySelector('.mx-fill').style.width = n && n.dur ? (pos / n.dur * 100) + '%' : '0%';
+  box.querySelector('[data-mx="t0"]').textContent = n ? fmtT(pos) : '';
+  box.querySelector('[data-mx="t1"]').textContent = n ? fmtT(n.dur) : '';
+}
+let _mxQueueKey = '';
+function syncMusicV2() {
+  const box = document.getElementById('mx'); if (!box) return;
+  const dj = currentState.dj, r = currentState.effectStatus?.radio || {}, on = dj && dj.on && dj.now;
+  const kick = box.querySelector('.mx-kicker'), title = box.querySelector('.mx-title'), sub = box.querySelector('.mx-sub'), nx = box.querySelector('.mx-next');
+  if (on) {
+    kick.textContent = dj.mixing ? 'Auto-DJ · mixing' : 'Auto-DJ';
+    title.textContent = dj.now.title || '';
+    sub.textContent = [dj.now.bpm ? dj.now.bpm + ' BPM' : '', dj.now.key || ''].filter(Boolean).join(' · ');
+    nx.textContent = dj.next && dj.next.title ? (dj.mixing ? 'Blending into ' : 'Next: ') + dj.next.title : '';
+  } else if (r.playing && r.station) {
+    kick.textContent = 'Radio'; title.textContent = r.station.name || ''; sub.textContent = r.title || ''; nx.textContent = '';
+  } else { kick.textContent = 'Nothing playing'; title.textContent = 'Start the Auto-DJ'; sub.textContent = ''; nx.textContent = ''; }
+  box.classList.toggle('live', !!(on || r.playing));
+  box.querySelector('[data-mx="play"]').setAttribute('aria-label', on || r.playing ? 'Stop' : 'Start the Auto-DJ');
+  box.querySelector('.mx-seek-row').hidden = !on;
+  const q = on && Array.isArray(dj.queue) ? dj.queue.map((t, i) => ({ t, i })).filter(({ i }) => i > dj.nowIdx).slice(0, 4) : [];
+  const key = JSON.stringify(q.map(({ t, i }) => [i, t.title, i === dj.nextIdx]));
+  if (key !== _mxQueueKey) {
+    _mxQueueKey = key;
+    box.querySelector('.mx-queue').replaceChildren(...q.map(({ t, i }) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'mx-q' + (i === dj.nextIdx ? ' next' : '');
+      const n = document.createElement('b'); n.textContent = i === dj.nextIdx ? '▶' : String(i - dj.nowIdx);
+      const s = document.createElement('span'); s.textContent = t.title || '';
+      b.append(n, s); b.title = 'Play next'; b.addEventListener('click', () => send({ cmd: 'djNext', index: i }));
+      return b;
+    }));
+  }
+  tickMusicV2();
+}
