@@ -302,6 +302,7 @@ function handleBtResult(msg) {
     document.querySelectorAll('#bt-range button').forEach((b) => b.classList.toggle('on', b.dataset.range === (msg.range || 'normal')));
     renderSpeakerWarning(msg.devices, msg.lastSpeakerMac);
     btPairedCache = msg.devices || []; // also the timer editor's sound-output list
+    if (typeof syncSetupPages === 'function') syncSetupPages();
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
   } else if (msg.cmd === 'btPairResult') {
     // A real report: "says it's pairing but nothing ever happens" - this

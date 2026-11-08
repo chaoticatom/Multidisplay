@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.9';
+const APP_VERSION = '0.7.10';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -298,6 +298,7 @@ function handleTextMessage(msg) {
     syncEffectsV2();
     syncDayV2();
     syncMusicV2();
+    syncSetupPages();
     syncLightningPanel();
     syncRetroPanel();
     syncVideoPanel();
@@ -4232,6 +4233,7 @@ function handleBtResult(msg) {
     document.querySelectorAll('#bt-range button').forEach((b) => b.classList.toggle('on', b.dataset.range === (msg.range || 'normal')));
     renderSpeakerWarning(msg.devices, msg.lastSpeakerMac);
     btPairedCache = msg.devices || []; // also the timer editor's sound-output list
+    if (typeof syncSetupPages === 'function') syncSetupPages();
     renderBtPairedList(msg.devices, pairedStatusEl, pairedListEl);
   } else if (msg.cmd === 'btPairResult') {
     // A real report: "says it's pairing but nothing ever happens" - this
@@ -6754,7 +6756,7 @@ function wireSetupV2() {
   const box = document.getElementById('sx'); if (!box) return;
   const grid = box.querySelector('.sx-grid');
   grid.innerHTML = SX_TILES.map((t) => `<button type="button" data-sx="${t.id}" style="--c:${t.c};--g:${t.g}">${svgIcon(t.icon, 30)}<span>${t.label}</span><i class="sx-dot" hidden></i></button>`).join('');
-  grid.querySelectorAll('[data-sx]').forEach((b) => b.addEventListener('click', () => sxOpen(SX_TILES.find((t) => t.id === b.dataset.sx))));
+  grid.querySelectorAll('[data-sx]').forEach((b) => b.addEventListener('click', () => { const id = b.dataset.sx; if (id === 'panels' || id === 'look' || id === 'speaker') spOpen(id); else sxOpen(SX_TILES.find((t) => t.id === id)); }));
   box.querySelector('[data-sxa="update"]').addEventListener('click', () => { sxOpen({ sub: 'System', find: 'Software update' }); document.getElementById('update-check-btn')?.click(); });
   box.querySelector('[data-sxa="restart"]').addEventListener('click', () => document.getElementById('restart-app-btn')?.click());
   box.querySelector('[data-sxa="reboot"]').addEventListener('click', () => document.getElementById('reboot-pi-btn')?.click());
@@ -7038,4 +7040,85 @@ function twoWordLabels(root) {
     const full = (el.textContent || '').replace(/\s+/g, ' ').trim(), short = twoWords(tn.textContent);
     if (short.length < tn.textContent.trim().length) { el.title = el.title || full; tn.textContent = short + ' '; }
   });
+}
+
+// ── Setup pages (Panels, Look, Speaker): open from the Setup tiles in place
+// of the home grid, with a back button - icons and dials, a word or two each.
+const FIX_CYCLE = ['', 'mirror', 'flip', 'rot180'], FIX_WORD = { '': 'As is', mirror: 'Mirror', flip: 'Flip', rot180: 'Turned' };
+const NET = [[4, 1, 0], [3, 0, 1], [0, 1, 1], [2, 2, 1], [1, 3, 1], [5, 1, 2]]; // face, column, row
+const LOOK_DIALS = [['bloom', 'Glow', '#7FE6FF'], ['vibrance', 'Colour', '#FF9EC4'], ['depth', 'Depth', '#C9A6FF'], ['smooth', 'Smooth', '#FFD24C']];
+const TRANS = [['seamless', 'Seamless', 'linear-gradient(90deg,#2B7BFF,#B57BFF)'], ['fade', 'Fade', 'linear-gradient(90deg,#2B7BFF,#0F141D)'], ['wipe', 'Wipe', 'linear-gradient(90deg,#2B7BFF 50%,#B57BFF 50%)'], ['dissolve', 'Dissolve', 'radial-gradient(#B57BFF 30%, transparent 32%) 0 0/8px 8px, #2B7BFF']];
+const dialHTML = (id, label, color) => `<label class="nx-dial sp-dial" style="--c:${color}"><span class="nx-ring"><span class="nx-in"><b class="nx-val"></b></span></span><span class="sp-cap">${label}</span><input type="range" min="0" max="1" step="0.05" data-sp="${id}" aria-label="${label}"></label>`;
+const tileHTML = (attr, label, inner, on) => `<div class="sp-t"><button type="button" ${attr} class="sp-tile${on ? ' on' : ''}" aria-label="${label}">${inner}</button><span>${label}</span></div>`;
+let spPage = '';
+function spOpen(page) {
+  spPage = page;
+  const box = document.getElementById('sp'), home = document.getElementById('sx'); if (!box) return;
+  home.hidden = !!page; box.hidden = !page;
+  if (!page) return;
+  box.innerHTML = `<div class="sp-head"><button type="button" class="sp-back" aria-label="Back">${svgIcon('<path d="M15 18 9 12l6-6"/>', 18)}</button><span>${{ panels: 'Panels', look: 'Look', speaker: 'Speaker' }[page]}</span></div><div class="sp-body"></div>`;
+  box.querySelector('.sp-back').addEventListener('click', () => spOpen(''));
+  const body = box.querySelector('.sp-body'), cube = '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/>';
+  if (page === 'panels') {
+    body.innerHTML = `<div class="sp-row3">${tileHTML('data-pa="cube"', 'Cube', svgIcon(cube, 32))}${tileHTML('data-pa="flat"', 'Flat', svgIcon('<rect x="2" y="6" width="9" height="9" rx="1"/><rect x="13" y="6" width="9" height="9" rx="1"/>', 32))}${tileHTML('data-pa="layout"', 'Layout', svgIcon('<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><path d="M17 13v8M13 17h8"/>', 32))}</div>
+      <div class="sp-card cube-only"><span class="sp-kick">Orientation</span><div class="sp-net">${NET.map(([f, c, r]) => `<button type="button" data-face="${f}" style="grid-column:${c + 1};grid-row:${r + 1}"><b>${FACE_LABEL[f]}</b><i></i></button>`).join('')}</div></div>
+      <div class="sp-row3">${tileHTML('data-pa="numbers"', 'Numbers', '<b class="sp-big">123</b>')}${tileHTML('data-pa="signal"', 'Signal', svgIcon('<path d="M2 12h3l3-8 4 16 3-8h7"/>', 24))}${tileHTML('data-pa="view"', 'View', svgIcon('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', 24))}</div>
+      <div class="sp-views" hidden>${[['all', 'All'], ['fr', 'Front+Right'], ['rb', 'Right+Back'], ['bl', 'Back+Left'], ['lf', 'Left+Front']].map(([v, l]) => `<button type="button" data-view="${v}">${l}</button>`).join('')}</div>`;
+    body.querySelector('[data-pa="cube"]').addEventListener('click', () => document.querySelector('.size-btn[data-size="64"]:not([data-mode])')?.click());
+    body.querySelector('[data-pa="flat"]').addEventListener('click', () => document.getElementById('panel2d-btn')?.click());
+    body.querySelector('[data-pa="layout"]').addEventListener('click', () => document.getElementById('setup-layout-btn')?.click());
+    body.querySelector('[data-pa="numbers"]').addEventListener('click', () => document.getElementById('identify-panels-btn')?.click());
+    body.querySelector('[data-pa="signal"]').addEventListener('click', () => { spOpen(''); sxOpen({ sub: 'Display', dg: 'panels', find: 'Panel signal' }); });
+    body.querySelector('[data-pa="view"]').addEventListener('click', () => { const v = body.querySelector('.sp-views'); v.hidden = !v.hidden; });
+    body.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setCubeView', view: b.dataset.view })));
+    body.querySelectorAll('[data-face]').forEach((b) => b.addEventListener('click', () => { const f = Number(b.dataset.face), cur = (currentState.faceFix || [])[f] || ''; send({ cmd: 'setFaceFix', face: f, fix: FIX_CYCLE[(FIX_CYCLE.indexOf(cur) + 1) % FIX_CYCLE.length] }); }));
+  } else if (page === 'look') {
+    body.innerHTML = `<div class="sp-row4">${LOOK_DIALS.map(([k, l, c]) => dialHTML(k, l, c)).join('')}</div>
+      <span class="sp-kick">Detail</span><div class="sp-row3">${tileHTML('data-q2="auto"', 'Auto', svgIcon('<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="4"/>', 24))}${tileHTML('data-q2="smooth"', 'Smooth', svgIcon('<path d="M2 12c3-6 5-6 8 0s5 6 8 0 3-4 4-4"/>', 24))}${tileHTML('data-q2="detailed"', 'Detailed', svgIcon('<path d="M3 3h4v4H3zM10 3h4v4h-4zM17 3h4v4h-4zM3 10h4v4H3zM10 10h4v4h-4zM17 10h4v4h-4zM3 17h4v4H3zM10 17h4v4h-4zM17 17h4v4h-4z"/>', 24))}</div>
+      <span class="sp-kick">Change</span><div class="sp-row4">${TRANS.map(([k, l, bg]) => tileHTML(`data-tr2="${k}" style="background:${bg}"`, l, '')).join('')}</div>
+      <div class="sp-line"><span class="sp-ico" style="background:#1A1E45;color:#C9D1FF">${svgIcon('<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>', 18)}</span><span class="sp-grow">Night dim</span><span class="sp-dim" data-night-hours></span><button type="button" class="cx-switch" data-night aria-label="Night dim on or off"></button></div>`;
+    body.querySelectorAll('[data-sp]').forEach((inp) => inp.addEventListener('input', () => { spPaint(inp, Number(inp.value)); send({ cmd: 'setLook', [inp.dataset.sp]: Number(inp.value) }); }));
+    body.querySelectorAll('[data-q2]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setQuality', quality: b.dataset.q2 })));
+    body.querySelectorAll('[data-tr2]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setTransition', style: b.dataset.tr2 })));
+    body.querySelector('[data-night]').addEventListener('click', () => send({ cmd: 'setNightDim', on: !currentState.prefs?.nightDim?.on }));
+  } else if (page === 'speaker') {
+    body.innerHTML = `<div class="sp-card sp-spk"><span class="sp-spk-ico">${svgIcon('<rect x="6" y="2" width="12" height="20" rx="3"/><circle cx="12" cy="14" r="3"/><circle cx="12" cy="6.5" r="1"/>', 28)}</span><div class="sp-grow"><b data-spk-name></b><span data-spk-state></span></div></div>
+      <div class="sp-row2">${dialHTML('vol', 'Volume', '#7FE6FF')}<label class="nx-dial sp-dial" style="--c:#FF9EC4"><span class="nx-ring"><span class="nx-in"><b class="nx-val"></b></span></span><span class="sp-cap">Sync ms</span><input type="range" min="0" max="600" step="10" data-sp="sync" aria-label="Speaker sync"></label></div>
+      <span class="sp-kick">Paired</span><div class="sp-paired"></div>
+      <button type="button" class="sp-cta" data-find>${svgIcon('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', 20)}Find speakers</button>`;
+    body.querySelector('[data-sp="vol"]').addEventListener('input', (e) => { spPaint(e.target, Number(e.target.value)); send({ cmd: 'setMasterVolume', value: Number(e.target.value) }); });
+    body.querySelector('[data-sp="sync"]').addEventListener('input', (e) => { spPaint(e.target, Number(e.target.value), 600, (v) => String(v)); setEffectOption('radio', 'syncMs', Number(e.target.value)); });
+    body.querySelector('[data-find]').addEventListener('click', () => { send({ cmd: 'btScan' }); spOpen(''); sxOpen({ tab: 'music', find: 'Bluetooth' }); });
+    send({ cmd: 'btStatus' });
+  }
+  syncSetupPages();
+}
+function spPaint(inp, v, max = 1, fmt = (x) => String(Math.round(x * 100))) {
+  const d = inp.closest('.nx-dial'); d.style.setProperty('--p', Math.round(Math.max(0, Math.min(1, v / max)) * 100) + '%'); d.querySelector('.nx-val').textContent = fmt(v);
+}
+function syncSetupPages() {
+  const box = document.getElementById('sp'); if (!box || !spPage) return;
+  const s = currentState;
+  if (spPage === 'panels') {
+    box.querySelector('[data-pa="cube"]')?.classList.toggle('on', s.panelMode === 'cube');
+    box.querySelector('[data-pa="flat"]')?.classList.toggle('on', s.panelMode !== 'cube');
+    box.querySelectorAll('[data-face]').forEach((b) => { const fx = (s.faceFix || [])[Number(b.dataset.face)] || ''; b.classList.toggle('on', !!fx); b.querySelector('i').textContent = FIX_WORD[fx]; });
+    box.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === (s.prefs?.view || 'all')));
+  } else if (spPage === 'look') {
+    const look = s.prefs?.look || {};
+    box.querySelectorAll('[data-sp]').forEach((inp) => { if (document.activeElement === inp) return; const v = Number(look[inp.dataset.sp] ?? 0.5); inp.value = v; spPaint(inp, v); });
+    box.querySelectorAll('[data-q2]').forEach((b) => b.classList.toggle('on', b.dataset.q2 === (s.prefs?.quality || 'auto')));
+    box.querySelectorAll('[data-tr2]').forEach((b) => b.classList.toggle('on', b.dataset.tr2 === (s.prefs?.transition?.style || 'seamless')));
+    const n = s.prefs?.nightDim || {};
+    box.querySelector('[data-night]')?.classList.toggle('on', !!n.on);
+    const h = box.querySelector('[data-night-hours]'); if (h) h.textContent = String(n.from ?? 22).padStart(2, '0') + '–' + String(n.to ?? 7).padStart(2, '0');
+  } else if (spPage === 'speaker') {
+    const list = typeof btPairedCache !== 'undefined' ? btPairedCache || [] : [], on = list.find((d) => d.connected);
+    const nm = box.querySelector('[data-spk-name]'), st = box.querySelector('[data-spk-state]');
+    if (nm) { nm.textContent = on ? on.name || on.mac : 'No speaker'; st.textContent = on ? '● Connected' : 'Not connected'; st.className = on ? 'sp-ok' : 'sp-dim'; }
+    const vol = box.querySelector('[data-sp="vol"]'); if (vol && document.activeElement !== vol) { const v = s.prefs?.volume ?? 1; vol.value = v; spPaint(vol, v); }
+    const sy = box.querySelector('[data-sp="sync"]'); if (sy && document.activeElement !== sy) { const v = s.effectOptions?.radio?.syncMs ?? 200; sy.value = v; spPaint(sy, v, 600, (x) => String(x)); }
+    const pl = box.querySelector('.sp-paired');
+    if (pl) pl.replaceChildren(...list.filter((d) => !d.connected).map((d) => { const r = document.createElement('div'); r.className = 'sp-line'; const dot = document.createElement('span'); dot.className = 'sp-dot'; const n = document.createElement('span'); n.className = 'sp-grow'; n.textContent = d.name || d.mac; const b = document.createElement('button'); b.type = 'button'; b.className = 'sp-small'; b.textContent = 'Connect'; b.addEventListener('click', () => send({ cmd: 'btSetOutput', mac: d.mac })); r.append(dot, n, b); return r; }));
+  }
 }
