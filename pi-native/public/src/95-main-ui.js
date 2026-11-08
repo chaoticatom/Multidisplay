@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
+  wireStudio();
   wireLightningPanel();
   wireRetroPanel();
   wireVideoPanel();
@@ -88,7 +89,7 @@ const _cxFaceCanvases = [];
 let _cxHero = null, _cxHeroCtx = null, _cxSample = null;
 const _cxC1 = [91, 124, 255], _cxC2 = [180, 91, 255];
 
-function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; }
+function cxNoteFrame(face, bytes) { if (currentState.panelMode === 'cube') _cxFaces[face] = bytes; studioNoteFrame(face, bytes); }
 
 function cxEffectOrder() {
   return [...document.querySelectorAll('#effects-body .effect-btn[data-effect]')]

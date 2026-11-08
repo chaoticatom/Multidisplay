@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
 <meta name="theme-color" content="#06070d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1308,6 +1310,56 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .mx-switch input{width:20px;height:20px;accent-color:#4ade80;flex:0 0 auto}
 .mx-row-btn{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:rgba(255,255,255,.04);box-shadow:0 0 0 1px rgba(255,255,255,.08);border-radius:14px;padding:12px;color:#eef2ff;font-size:14px;cursor:pointer;margin:0 0 10px;text-align:left}
 .mx-row-btn span{color:rgba(238,242,255,.5);font-size:12.5px}
+
+/* ── Studio (v2 layout, wide screens) - see public/src/97-studio.js ── */
+:root { --st-bg:#0A0C11; --st-panel:#0E121A; --st-line:#1F2633; --st-line2:#2A3242; --st-txt:#E8ECF4; --st-dim:#8892A6; --st-acc:#7FE6FF; --st-ok:#5EE08A; --rail:84px; --head:72px; --dock:72px; --col:380px; }
+#studio-rail, #studio-head, #studio-map, #studio-transport, #studio-dock { display: none; }
+.studio-sr { position: absolute; left: -9999px; }
+@media (min-width: 1024px) {
+  body { background: var(--st-bg); font-family: Inter, 'Segoe UI', system-ui, sans-serif; }
+  #studio-rail { display: flex; position: fixed; left: 0; top: 0; bottom: 0; width: var(--rail); z-index: 30; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0; background: #0C0F15; border-right: 1px solid #1A1F2B; }
+  .studio-logo { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: var(--st-acc); background: #11161F; border: 1px solid #232A38; margin-bottom: 16px; }
+  .studio-items { display: flex; flex-direction: column; gap: 8px; }
+  .studio-item { width: 58px; height: 58px; border-radius: 14px; border: 0; background: transparent; color: #9AA4B8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 500 11px Inter, system-ui, sans-serif; cursor: pointer; }
+  .studio-item:hover { background: #141A25; color: var(--st-txt); }
+  .studio-item.on { background: var(--st-acc); color: #0A0C11; font-weight: 600; }
+  /* The controls column sits beside the rail; the old tab bar is the rail now. */
+  #sidebar { margin-left: var(--rail); border-right: 1px solid #1A1F2B !important; }
+  #sidebar:not(.hidden) { width: 380px !important; min-width: 380px !important; }
+  /* Menu column hidden: the stage widens to the rail. */
+  body:has(#sidebar.hidden) { --col: 0px; }
+  #tab-bar { display: none !important; }
+  #studio-head { display: flex; position: fixed; top: 0; right: 0; left: calc(var(--rail) + var(--col)); height: var(--head); z-index: 20; align-items: center; gap: 14px; padding: 0 24px; background: linear-gradient(var(--st-bg), rgba(10,12,17,0.85)); border-bottom: 1px solid #1A1F2B; }
+  .studio-now { display: flex; flex-direction: column; min-width: 0; }
+  .studio-kicker { font-size: 12px; color: var(--st-dim); }
+  #studio-name { font: 600 22px 'Space Grotesk', Inter, system-ui, sans-serif; color: var(--st-txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32vw; }
+  .studio-chip { font-size: 12px; color: #B9C2D3; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--st-line2); white-space: nowrap; }
+  .studio-spacer { flex: 1; }
+  .studio-askbox { width: min(380px, 30vw); height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 12px; background: #11161F; border: 1px solid #232A38; color: var(--st-dim); }
+  .studio-askbox input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--st-txt); font: 14px Inter, system-ui, sans-serif; }
+  .studio-askbox kbd { font: 11px Inter, system-ui, sans-serif; border: 1px solid var(--st-line2); border-radius: 6px; padding: 2px 6px; }
+  .studio-btn { height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--st-line2); background: #11161F; color: var(--st-txt); font: 500 14px Inter, system-ui, sans-serif; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .studio-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--st-ok); }
+  .studio-btn .dot.off { background: #6B7487; }
+  #studio-map { display: block; position: fixed; top: calc(var(--head) + 16px); right: 20px; z-index: 15; padding: 12px; border-radius: 16px; background: rgba(14,18,26,0.92); border: 1px solid var(--st-line); cursor: pointer; }
+  #studio-map[hidden] { display: none; }
+  #studio-map canvas { display: block; width: 204px; height: 153px; image-rendering: pixelated; margin-top: 8px; }
+  #studio-transport { display: flex; position: fixed; bottom: calc(var(--dock) + 16px); left: calc(var(--rail) + var(--col) + (100vw - var(--rail) - var(--col)) / 2); transform: translateX(-50%); z-index: 15; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: 16px; background: rgba(18,24,35,0.94); border: 1px solid #232A38; }
+  .studio-icon { width: 44px; height: 44px; border-radius: 12px; border: 0; background: transparent; color: #B9C2D3; display: grid; place-items: center; cursor: pointer; }
+  .studio-icon:hover { background: #1A2130; }
+  .studio-cta { height: 44px; padding: 0 18px; border-radius: 12px; border: 0; background: var(--st-acc); color: #0A0C11; font: 600 14px Inter, system-ui, sans-serif; cursor: pointer; }
+  .studio-sep { width: 1px; height: 28px; background: #232A38; }
+  #studio-transport input[type=range], #studio-dock input[type=range] { width: 120px; accent-color: var(--st-acc); }
+  #studio-dock { display: flex; position: fixed; bottom: 0; right: 0; left: calc(var(--rail) + var(--col)); height: var(--dock); z-index: 20; align-items: center; gap: 14px; padding: 0 24px; background: #0C0F15; border-top: 1px solid #1A1F2B; }
+  .studio-disc { width: 44px; height: 44px; border-radius: 10px; border: 0; cursor: pointer; background: radial-gradient(circle, #FFB86B 0 18%, #151B26 19% 100%); }
+  .studio-track { display: flex; flex-direction: column; min-width: 0; }
+  #studio-track { font-size: 14px; font-weight: 500; color: var(--st-txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  #studio-track2 { font-size: 12px; color: var(--st-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  .studio-round { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--st-txt); color: #0A0C11; display: grid; place-items: center; cursor: pointer; }
+  /* The new accent across the controls column. */
+  #sidebar { --c-acc: var(--st-acc); --cx1: #3FB8E0; --cx2: #7FE6FF; }
+  #sidebar .ui-btn-primary { background: var(--st-acc) !important; color: #0A0C11 !important; }
+}
 </style>
 </head>
 <body>
@@ -2927,6 +2979,34 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   </div>
 </div>
 
+<!-- Studio (v2 layout, wide screens): see public/src/97-studio.js. -->
+<nav id="studio-rail" aria-label="Main">
+  <div class="studio-logo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/></svg></div>
+  <div class="studio-items"></div>
+</nav>
+<header id="studio-head">
+  <div class="studio-now"><span class="studio-kicker">Playing on the display</span><span id="studio-name">&nbsp;</span></div>
+  <span id="studio-changed" class="studio-chip" hidden></span>
+  <div class="studio-spacer"></div>
+  <div class="studio-askbox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <label for="studio-ask" class="studio-sr">Ask for an effect</label><input id="studio-ask" type="text" placeholder="Try “something calm for bedtime”" autocomplete="off"><kbd>Ctrl K</kbd></div>
+  <button type="button" id="studio-panels" class="studio-btn"><span class="dot"></span><span class="txt">Panels on</span></button>
+</header>
+<div id="studio-map" title="All six faces · tap to set how each panel is mounted"><div class="studio-kicker">Unfolded cube</div><canvas id="studio-map-canvas" width="136" height="102" aria-label="All six faces of the cube, unfolded"></canvas></div>
+<div id="studio-transport">
+  <button type="button" id="studio-prev" class="studio-icon" aria-label="Previous effect"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg></button>
+  <button type="button" id="studio-surprise" class="studio-cta">Surprise me</button>
+  <button type="button" id="studio-next" class="studio-icon" aria-label="Next effect"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+  <span class="studio-sep"></span><label for="studio-speed" class="studio-kicker">Speed</label><input type="range" id="studio-speed" min="0.1" max="3" step="0.05" value="1">
+  <span id="studio-detail" class="studio-kicker"></span>
+</div>
+<footer id="studio-dock">
+  <button type="button" id="studio-music" class="studio-disc" aria-label="Open Music"></button>
+  <div class="studio-track"><span id="studio-track">Nothing playing</span><span id="studio-track2"></span></div>
+  <div class="studio-spacer"></div>
+  <button type="button" id="studio-stop" class="studio-round" aria-label="Stop the music"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+  <label for="studio-bright" class="studio-kicker">Brightness</label><input type="range" id="studio-bright" min="0.1" max="1.5" step="0.05" value="1">
+</footer>
 <div id="canvas-wrap">
   <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
   <div id="webgl-fallback" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:340px;text-align:center;color:#9ab;font-size:14px;line-height:1.6;padding:20px;">
@@ -2978,6 +3058,6 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.6.422"></script>
+<script src="app.js?v=0.7.0"></script>
 </body>
 </html>
