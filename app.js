@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.12';
+const APP_VERSION = '0.7.13';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4627,7 +4627,7 @@ function fitCubeCamera() {
   // Small margin so the cube isn't touching the edge; inside the home
   // layout's tile, back off further so it fits the tile, not the window.
   const hs = homeStageRect();
-  const shrink = hs ? Math.max(1, Math.min(window.innerWidth / Math.max(1, hs.r - hs.l), window.innerHeight / Math.max(1, hs.b - hs.t))) : 1;
+  const shrink = hs ? Math.max(1, Math.min(window.innerWidth, window.innerHeight) / Math.max(1, Math.min(hs.r - hs.l, hs.b - hs.t))) : 1;
   const dist = Math.max(vDist, hDist) * 1.15 * shrink;
   const pos = CUBE_CAMERA_DIR.clone().multiplyScalar(dist);
   camera.position.copy(pos);
@@ -4657,7 +4657,6 @@ function homeStageRect() {
   if (!document.body.classList.contains('hm')) return null;
   const el = document.getElementById('hm-stage');
   if (!el || getComputedStyle(el).display === 'none') return null; // fixed: offsetParent is always null
-  if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
   const r = el.getBoundingClientRect();
   return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;
 }
@@ -7156,9 +7155,11 @@ function syncSetupPages() {
 // column beside it (thin brightness / volume / speed sliders, five small
 // round buttons, the music strip) and a dock (favourite effects, then All
 // effects, Music, Day, Setup and power). There is no sidebar: each dock
-// button opens that menu as a sheet on the right, Setup opens wide. Phones:
-// search, the cube tile with four small buttons on it, two thin sliders,
-// the music strip and the bottom bar (whose menus open as the bottom sheet).
+// button turns the main area into that page, and the live cube moves to a
+// preview card at the top of the column, so every page shows what's on the
+// display. Phones: search, the cube tile with four small buttons on it, two
+// thin sliders, the music strip and the bottom bar; a tab's page fills the
+// screen under a live preview strip.
 // The markup is in index.html (#hm-*); the preview centres the cube in
 // #hm-stage (see homeStageRect() in 90-preview.js).
 

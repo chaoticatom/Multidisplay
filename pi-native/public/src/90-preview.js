@@ -181,7 +181,7 @@ function fitCubeCamera() {
   // Small margin so the cube isn't touching the edge; inside the home
   // layout's tile, back off further so it fits the tile, not the window.
   const hs = homeStageRect();
-  const shrink = hs ? Math.max(1, Math.min(window.innerWidth / Math.max(1, hs.r - hs.l), window.innerHeight / Math.max(1, hs.b - hs.t))) : 1;
+  const shrink = hs ? Math.max(1, Math.min(window.innerWidth, window.innerHeight) / Math.max(1, Math.min(hs.r - hs.l, hs.b - hs.t))) : 1;
   const dist = Math.max(vDist, hDist) * 1.15 * shrink;
   const pos = CUBE_CAMERA_DIR.clone().multiplyScalar(dist);
   camera.position.copy(pos);
@@ -211,7 +211,6 @@ function homeStageRect() {
   if (!document.body.classList.contains('hm')) return null;
   const el = document.getElementById('hm-stage');
   if (!el || getComputedStyle(el).display === 'none') return null; // fixed: offsetParent is always null
-  if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
   const r = el.getBoundingClientRect();
   return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;
 }

@@ -3,9 +3,11 @@
 // column beside it (thin brightness / volume / speed sliders, five small
 // round buttons, the music strip) and a dock (favourite effects, then All
 // effects, Music, Day, Setup and power). There is no sidebar: each dock
-// button opens that menu as a sheet on the right, Setup opens wide. Phones:
-// search, the cube tile with four small buttons on it, two thin sliders,
-// the music strip and the bottom bar (whose menus open as the bottom sheet).
+// button turns the main area into that page, and the live cube moves to a
+// preview card at the top of the column, so every page shows what's on the
+// display. Phones: search, the cube tile with four small buttons on it, two
+// thin sliders, the music strip and the bottom bar; a tab's page fills the
+// screen under a live preview strip.
 // The markup is in index.html (#hm-*); the preview centres the cube in
 // #hm-stage (see homeStageRect() in 90-preview.js).
 
