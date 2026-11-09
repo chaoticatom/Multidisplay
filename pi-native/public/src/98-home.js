@@ -63,8 +63,9 @@ function wireHome() {
     note: () => document.getElementById('note-open')?.click(),
     draw: () => document.getElementById('draw-open')?.click(),
     fav: () => send({ cmd: 'toggleFavourite', effect: currentState.effect }),
-    power: () => document.getElementById('clear-all-btn')?.click(),
+    power: () => hmOff(),
   };
+  document.querySelectorAll('[data-hx]').forEach((b) => b.addEventListener('click', () => ({ blank: hmBlank, mute: hmMute, off: hmOff })[b.dataset.hx]()));
   document.querySelectorAll('[data-hq]').forEach((b) => b.addEventListener('click', () => quick[b.dataset.hq]()));
   document.querySelector('[data-ht="prev"]').addEventListener('click', () => document.getElementById('studio-prev')?.click());
   document.querySelector('[data-ht="next"]').addEventListener('click', () => document.getElementById('studio-next')?.click());
@@ -83,6 +84,20 @@ function wireHome() {
   document.body.classList.toggle('hm-sheet', menuOpen);
   window.addEventListener('resize', () => syncHome());
   setTimeout(resizeRenderer, 50);
+}
+// Blank: the panels go dark, the music carries on (tap again: back on).
+function hmBlank() { send({ cmd: 'setPanelsOff', on: !currentState.panelsOff }); }
+// Mute: volume to 0, remembering the level; tap again to restore it.
+function hmMute() {
+  const v = Number(currentState.prefs?.volume ?? 0.5);
+  if (v > 0.001) { try { localStorage.setItem('hmVol', String(v)); } catch (e) { /* storage blocked */ } send({ cmd: 'setMasterVolume', value: 0 }); }
+  else { let back = 0.5; try { back = Number(localStorage.getItem('hmVol')) || 0.5; } catch (e) { /* storage blocked */ } send({ cmd: 'setMasterVolume', value: back }); }
+}
+// Off: the display and the music both stop (clearAll does both); when it's
+// already off, the last effect comes back on.
+function hmOff() {
+  if (currentState.blank) { send({ cmd: 'setEffect', effect: currentState.effect || 'plasma' }); if (currentState.panelsOff) send({ cmd: 'setPanelsOff', on: false }); return; }
+  send({ cmd: 'clearAll' }); if (typeof radioBrowserStop === 'function') radioBrowserStop();
 }
 function hmPlaying() {
   const s = currentState, r = (s.effectStatus && s.effectStatus.radio) || {};
@@ -110,7 +125,9 @@ function syncHome() {
   const favs = s.prefs?.favourites || [];
   document.querySelectorAll('[data-hq="fav"]').forEach((b) => b.classList.toggle('on', favs.includes(s.effect)));
   document.querySelectorAll('[data-hq="party"]').forEach((b) => b.classList.toggle('on', !!s.party));
-  document.querySelectorAll('[data-hq="power"], [data-hd="power"]').forEach((b) => b.classList.toggle('off', !!s.blank));
+  document.querySelectorAll('[data-hd="power"]').forEach((b) => b.classList.toggle('off', !!s.blank));
+  const xs = { blank: !!s.panelsOff, mute: Number(s.prefs?.volume ?? 1) <= 0.001, off: !!s.blank };
+  document.querySelectorAll('[data-hx]').forEach((b) => { const on = xs[b.dataset.hx]; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
   const cur = hmCurrent();
   document.querySelectorAll('[data-hd]').forEach((b) => { const on = b.dataset.hd !== 'power' && HM_DOCK[b.dataset.hd] === cur; b.classList.toggle('on', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
   // Music strip: the same text as the old dock (syncStudio fills it).
