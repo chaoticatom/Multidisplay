@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.17';
+const APP_VERSION = '0.7.18';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -7445,6 +7445,8 @@ const TM_ICON = {
 function wireDayNext() {
   const LABEL = { wake: 'Wake up', start: 'Switch on', winddown: 'Wind down', off: 'Turn off' };
   document.querySelectorAll('.tm-quick [data-quick]').forEach((b) => { const k = b.dataset.quick; if (TM_ICON[k]) { b.dataset.kind = k; b.innerHTML = `<span class="tm-ico">${svgIcon(TM_ICON[k], 16)}</span><span>${LABEL[k]}</span><span class="tm-plus">+</span>`; } });
+  // The timer editor's four kinds: the same icons and colours as the cards.
+  document.querySelectorAll('.tm-kind[data-kind]').forEach((b) => { const k = b.dataset.kind, sp = b.querySelector('span'); if (sp && TM_ICON[k]) { sp.innerHTML = svgIcon(TM_ICON[k], 20); sp.className = 'tm-ico'; } });
   const add = document.getElementById('alarm-add-btn'); if (add) add.innerHTML = svgIcon('<path d="M12 5v14M5 12h14"/>', 14) + '<span>New timer</span>';
 }
 
@@ -7559,6 +7561,9 @@ const HM_RELABEL = [
   ['#setup-layout-btn', 'Edit layout'],
   ['#identify-panels-btn', 'Panel numbers'],
   ['#pwa-install-btn', 'Install app'],
+  ['#pe-clear-btn', 'Clear all'],
+  ['#note-send', 'Send'],
+  ['#note-clear', 'Take down'],
   ['label:has(#acc-local)', 'No PIN at home'],
   ['label:has(#acc-guests)', 'Guest view from outside'],
   ['label:has(#alexa-chk)', 'Use with Alexa'],
@@ -7578,6 +7583,8 @@ function hmRelabel() {
     });
   }
   // Long how-to notes fold away behind a small "How" link.
+  document.querySelectorAll('#note-title, #draw-title').forEach((t) => { if (!t.dataset.relabelled) { t.textContent = t.textContent.replace(/^[^\p{L}]+/u, ''); t.dataset.relabelled = '1'; } });
+  document.querySelectorAll('#note-colours button').forEach((b) => { if (!b.dataset.relabelled) { b.dataset.relabelled = '1'; b.textContent = b.textContent.replace(/^[^\p{L}]+/u, ''); b.style.setProperty('--dot', b.dataset.c); } });
   document.querySelectorAll('#alexa-help, #pwa-help, #ai-help').forEach((n) => {
     if (n.closest('details.hm-how') || !n.parentNode) return;
     const d = document.createElement('details'); d.className = 'hm-how';

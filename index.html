@@ -2058,6 +2058,31 @@ body.hm .pp-ok { border-radius: 999px !important; background: #E8ECF4 !important
 body.hm .nx-pal { display: flex !important; }
 body.hm .nx-pal button { flex: 0 0 46px !important; }
 
+/* Faces (cube editor): intro hidden, tidy save / load row. */
+body.hm #panel-editor-section > .section-body > div:first-child { display: none !important; }
+body.hm #sidebar #pe-clear-btn { width: auto !important; flex: 0 0 auto !important; height: 36px; padding: 0 16px !important; border-radius: 999px !important; background: transparent !important; border: 1px solid #FF7A7A !important; color: #FF7A7A !important; font: 600 13px Inter, sans-serif !important; letter-spacing: 0 !important; }
+body.hm #pe-save-btn, body.hm #pe-load-btn, body.hm #pe-del-btn { width: 40px; height: 40px; border-radius: 50% !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; padding: 0 !important; }
+body.hm #panel-editor-section .ui-label-accent { margin: 6px 0 !important; }
+body.hm .cx-net-face { border-radius: 16px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; overflow: hidden; }
+body.hm .cx-net-face.set { border-color: #7FE6FF66 !important; }
+/* Message pop-up. */
+body.hm #note-modal .tm-sheet, body.hm #draw-modal .tm-sheet { height: auto !important; max-height: 92vh; min-height: 0 !important; }
+body.hm #note-text { min-height: 96px; padding: 14px !important; border-radius: 16px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; color: #E8ECF4 !important; font: 500 18px Inter, sans-serif !important; resize: none; }
+body.hm #note-colours button::before { content: ''; width: 12px; height: 12px; border-radius: 50%; background: var(--dot); display: inline-block; margin-right: 8px; vertical-align: -1px; }
+body.hm #note-clear { height: 42px; border-radius: 999px !important; background: transparent !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; font: 600 14px Inter, sans-serif !important; }
+body.hm #note-send { height: 42px; border-radius: 999px !important; background: #E8ECF4 !important; color: #0A0C11 !important; font: 600 14px Inter, sans-serif !important; }
+/* Timer editor kinds. */
+body.hm .tm-kind { background: #0D1118 !important; box-shadow: none !important; border: 1px solid #171C26 !important; border-radius: 18px !important; gap: 6px !important; }
+body.hm .tm-kind[data-kind="wake"] { --k: #FFD24C; } body.hm .tm-kind[data-kind="start"] { --k: #5EE08A; } body.hm .tm-kind[data-kind="winddown"] { --k: #C9A6FF; } body.hm .tm-kind[data-kind="off"] { --k: #FF7A7A; }
+body.hm .tm-kind .tm-ico { width: 38px; height: 38px; border-radius: 12px; }
+body.hm .tm-kind.on { border-color: var(--k) !important; background: linear-gradient(160deg, color-mix(in srgb, var(--k) 14%, #0D1118), #0D1118 70%) !important; }
+body.hm .tm-sheet input[type=checkbox], body.hm .sc-card input[type=checkbox], body.hm .mx-card input[type=checkbox] { accent-color: #7FE6FF; width: 18px; height: 18px; }
+/* Scenes extras on a phone. */
+body.hm #playlist-row .cx-switch { width: 44px !important; height: 26px !important; flex: 0 0 auto; }
+body.hm .dc-info { width: 22px !important; height: 22px !important; min-width: 0 !important; font-size: 12px !important; }
+/* Toasts. */
+body.hm .cx-toast, body.hm #cx-toast { border-radius: 999px !important; background: rgba(13,17,24,0.96) !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; font: 500 14px Inter, sans-serif !important; box-shadow: 0 12px 30px #0009 !important; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }

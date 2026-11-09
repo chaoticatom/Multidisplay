@@ -289,6 +289,8 @@ const TM_ICON = {
 function wireDayNext() {
   const LABEL = { wake: 'Wake up', start: 'Switch on', winddown: 'Wind down', off: 'Turn off' };
   document.querySelectorAll('.tm-quick [data-quick]').forEach((b) => { const k = b.dataset.quick; if (TM_ICON[k]) { b.dataset.kind = k; b.innerHTML = `<span class="tm-ico">${svgIcon(TM_ICON[k], 16)}</span><span>${LABEL[k]}</span><span class="tm-plus">+</span>`; } });
+  // The timer editor's four kinds: the same icons and colours as the cards.
+  document.querySelectorAll('.tm-kind[data-kind]').forEach((b) => { const k = b.dataset.kind, sp = b.querySelector('span'); if (sp && TM_ICON[k]) { sp.innerHTML = svgIcon(TM_ICON[k], 20); sp.className = 'tm-ico'; } });
   const add = document.getElementById('alarm-add-btn'); if (add) add.innerHTML = svgIcon('<path d="M12 5v14M5 12h14"/>', 14) + '<span>New timer</span>';
 }
 
@@ -403,6 +405,9 @@ const HM_RELABEL = [
   ['#setup-layout-btn', 'Edit layout'],
   ['#identify-panels-btn', 'Panel numbers'],
   ['#pwa-install-btn', 'Install app'],
+  ['#pe-clear-btn', 'Clear all'],
+  ['#note-send', 'Send'],
+  ['#note-clear', 'Take down'],
   ['label:has(#acc-local)', 'No PIN at home'],
   ['label:has(#acc-guests)', 'Guest view from outside'],
   ['label:has(#alexa-chk)', 'Use with Alexa'],
@@ -422,6 +427,8 @@ function hmRelabel() {
     });
   }
   // Long how-to notes fold away behind a small "How" link.
+  document.querySelectorAll('#note-title, #draw-title').forEach((t) => { if (!t.dataset.relabelled) { t.textContent = t.textContent.replace(/^[^\p{L}]+/u, ''); t.dataset.relabelled = '1'; } });
+  document.querySelectorAll('#note-colours button').forEach((b) => { if (!b.dataset.relabelled) { b.dataset.relabelled = '1'; b.textContent = b.textContent.replace(/^[^\p{L}]+/u, ''); b.style.setProperty('--dot', b.dataset.c); } });
   document.querySelectorAll('#alexa-help, #pwa-help, #ai-help').forEach((n) => {
     if (n.closest('details.hm-how') || !n.parentNode) return;
     const d = document.createElement('details'); d.className = 'hm-how';
