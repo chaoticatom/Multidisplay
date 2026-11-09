@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.15';
+const APP_VERSION = '0.7.16';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -6228,7 +6228,9 @@ function cxSyncMusic() {
   if (sb) {
     const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
     sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display';
-    sb.textContent = on ? '📊 Spectrum on' : '📊 Spectrum';
+    // Equaliser bars that dance while the spectrum is on the display.
+    const html = `<span class="sb-bars${on ? ' on' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>${on ? 'Spectrum on' : 'Spectrum'}</span>`;
+    if (sb.dataset.html !== html) { sb.innerHTML = html; sb.dataset.html = html; }
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';
@@ -7224,6 +7226,7 @@ function wireHome() {
   document.querySelector('[data-ht="prev"]').addEventListener('click', () => document.getElementById('studio-prev')?.click());
   document.querySelector('[data-ht="next"]').addEventListener('click', () => document.getElementById('studio-next')?.click());
   document.querySelector('[data-ht="opts"]').addEventListener('click', () => hmOpen('now'));
+  document.querySelector('[data-ht="full"]')?.addEventListener('click', () => { if (menuOpen) toggleMenu(); });
   document.querySelectorAll('[data-hd]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.hd === 'power') quick.power(); else hmOpen(HM_DOCK[b.dataset.hd]);
   }));
@@ -7235,6 +7238,8 @@ function wireHome() {
   });
   wireMusicNext();
   wireDayNext();
+  wireTabsNext();
+  wireSetupCards();
   // Start on the cube, the menus tucked away.
   if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
   document.body.classList.toggle('hm-sheet', menuOpen);
@@ -7297,6 +7302,8 @@ function syncHome() {
     document.querySelector('[data-hm="music"]').classList.toggle('spin', playing);
   }
   hmSyncSetup();
+  // Colour swatches keep their own colour over the menu's button styles.
+  document.querySelectorAll('#nx .nx-pal [data-pal]:not([data-bg])').forEach((b) => { const bg = b.style.background; if (bg) { b.style.setProperty('background', bg, 'important'); b.dataset.bg = '1'; } });
   mxgSync();
   // Dock: five favourites (or the first effects), the playing one outlined.
   const box = document.getElementById('hm-favs');
@@ -7349,8 +7356,8 @@ const MX_GENRES = [
 ];
 const MX_MORE = { name: 'More', c: '#8892A6' };
 function mxGenreOf(st) {
-  const t = ((st.genre || '') + ' ' + (st.name || '')).toLowerCase();
-  return MX_GENRES.find((g) => g.re.test(t)) || MX_MORE;
+  const first = (st.genre || '').split(',')[0].trim().toLowerCase(), t = ((st.genre || '') + ' ' + (st.name || '')).toLowerCase();
+  return (first && MX_GENRES.find((g) => g.re.test(first))) || MX_GENRES.find((g) => g.re.test(t)) || MX_MORE;
 }
 // A steady colour per station, in its genre's family.
 function mxCardBg(st, g) {
@@ -7382,12 +7389,12 @@ function mxgSync() {
   let list = [], note = '';
   if (shown === 'mine') { list = currentState.prefs?.stations || []; note = 'Tap ★ on any station to keep it here.'; }
   else if (shown === 'recent') { try { list = JSON.parse(localStorage.getItem('recentStations') || '[]'); } catch (e) { /* storage blocked */ } note = 'Stations you play show up here.'; }
-  else if (shown === 'search') { list = search?.results || []; note = search?.searching ? 'Searching…' : search?.error ? 'Search failed: ' + search.error : 'Search for a name, genre or city.'; }
+  else if (shown === 'search') { list = search?.query === 'genres:' ? [] : search?.results || []; note = search?.searching ? 'Searching…' : search?.error ? 'Search failed: ' + search.error : 'Search for a name, genre or city.'; }
   else {
     // Featured: the built-in stations plus the most-played ones worldwide,
     // fetched once so every genre has something in it.
-    list = [...RADIO_STATIONS, ...(search && !search.searching && !document.querySelector('.radio-search-input-el')?.value ? search.results || [] : [])];
-    if (!_mxgTopAsked && !(search?.results || []).length && document.getElementById('sidebar')?.offsetParent !== null && document.body.dataset.tab === 'music') { _mxgTopAsked = true; send({ cmd: 'radioSearch', query: '' }); }
+    list = [...RADIO_STATIONS, ...(search && !search.searching && search.query === 'genres:' ? search.results || [] : [])];
+    if (!_mxgTopAsked && search?.query !== 'genres:' && document.body.dataset.tab === 'music' && menuOpen) { _mxgTopAsked = true; send({ cmd: 'radioSearch', query: 'genres:' }); }
   }
   const seen = new Set(); list = list.filter((s) => s && s.url && !seen.has(s.url) && seen.add(s.url));
   const favs = (currentState.prefs?.stations || []).map((x) => x.url).join(',');
@@ -7438,4 +7445,108 @@ function wireDayNext() {
   const LABEL = { wake: 'Wake up', start: 'Switch on', winddown: 'Wind down', off: 'Turn off' };
   document.querySelectorAll('.tm-quick [data-quick]').forEach((b) => { const k = b.dataset.quick; if (TM_ICON[k]) { b.dataset.kind = k; b.innerHTML = `<span class="tm-ico">${svgIcon(TM_ICON[k], 16)}</span><span>${LABEL[k]}</span><span class="tm-plus">+</span>`; } });
   const add = document.getElementById('alarm-add-btn'); if (add) add.innerHTML = svgIcon('<path d="M12 5v14M5 12h14"/>', 14) + '<span>New timer</span>';
+}
+
+// ── Now, Scenes and Faces (next gen). Now: the playing effect and recent
+// ones on the left, colours / its options / dials / overlays on the right
+// (the nodes are moved, so every handler stays). Plain one-word sub-tab
+// names. The Draw pop-up: tools on the left, a big canvas on the right.
+function wireTabsNext() {
+  if (typeof SUB_LABEL === 'object') {
+    for (const k of Object.keys(SUB_LABEL)) SUB_LABEL[k] = SUB_LABEL[k].replace(/^[^\p{L}\p{N}]+/u, '');
+    SUB_LABEL['Draw on a Face'] = 'Faces';
+  }
+  const body = document.querySelector('#now-section > .section-body'), nx = document.getElementById('nx');
+  if (body && nx && !nx.querySelector('.nx-l')) {
+    const L = document.createElement('div'), R = document.createElement('div');
+    L.className = 'nx-l'; R.className = 'nx-r';
+    const q = (s) => body.querySelector(s);
+    L.append(...['.nx-hero', '#last-change', '.nx-quick', '.nx-recent'].map(q).filter(Boolean));
+    R.append(...['.nx-pal', '#now-options', '#now-no-options', '.nx-dials', '.nx-ov'].map(q).filter(Boolean));
+    nx.append(L, R); // still inside #nx, which syncNowV2() looks them up in
+  }
+  // Colour swatches keep their own colour over the menu's button styles.
+  const sheet = document.querySelector('#draw-modal .tm-sheet'), cv = document.getElementById('draw-canvas');
+  if (sheet && cv && !sheet.querySelector('.dm-tools')) {
+    const tools = document.createElement('div'); tools.className = 'dm-tools';
+    const rest = [...sheet.children].filter((x) => x !== cv && !x.classList.contains('tm-top'));
+    tools.append(...rest);
+    const stage = document.createElement('div'); stage.className = 'dm-stage'; stage.append(cv);
+    sheet.append(tools, stage);
+  }
+}
+
+// ── Setup tabs (next gen): each heading and the controls under it become a
+// card with a coloured icon, two across on a wide page. Nodes are moved, not
+// rebuilt, so every control keeps its handlers and ids.
+const SETUP_ICON = [
+  [/restart|reboot/i, '#FF7A7A', '<path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/>'],
+  [/pin|lock|guest/i, '#FFD24C', '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'],
+  [/update|software|version/i, '#7FE6FF', '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>'],
+  [/backup|restore/i, '#7CF2D0', '<path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/><path d="M12 12v9M8 17l4 4 4-4"/>'],
+  [/notif|message|alert/i, '#C9A6FF', '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/>'],
+  [/app|install/i, '#5EE08A', '<rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/>'],
+  [/alexa|skill|echo/i, '#7FE6FF', '<circle cx="12" cy="12" r="9"/><path d="M8 12a4 4 0 0 1 8 0"/>'],
+  [/\bai\b|assistant|model|key/i, '#FF9EC4', '<path d="M12 3c4.97 0 9 3.13 9 7s-4.03 7-9 7c-1 0-2-.13-2.9-.37L4 19l1.4-3.6C4 14.1 3 12.6 3 10c0-3.87 4.03-7 9-7z"/>'],
+  [/wifi|wi-fi|network|internet|remote|tunnel|cloudflare/i, '#6FA8FF', '<path d="M2 9a15 15 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="1"/>'],
+  [/bluetooth|speaker|sound|audio/i, '#6FA8FF', '<path d="m7 7 10 10-5 5V2l5 5L7 17"/>'],
+  [/night|sleep|dim/i, '#C9D1FF', '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>'],
+  [/panel|face|cube|wall|layout|chain/i, '#7FE6FF', '<path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/>'],
+  [/look|quality|colour|color|bright/i, '#C9A6FF', '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/>'],
+  [/change|fade|transition|crossfade/i, '#9BE89A', '<path d="M4 12h16M12 4l8 8-8 8"/>'],
+  [/timing|delay|sync/i, '#FFD24C', '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>'],
+  [/react|music|play|dj|mix/i, '#FF9EC4', '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'],
+  [/preview|view/i, '#9BE89A', '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'],
+];
+function setupIconFor(text) {
+  const hit = SETUP_ICON.find(([re]) => re.test(text));
+  return hit || ['#8892A6', '#8892A6', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'];
+}
+function setupCardHead(title) {
+  const [, c, icon] = setupIconFor(title);
+  const h = document.createElement('div'); h.className = 'sc-head'; h.style.setProperty('--c', c);
+  h.innerHTML = `<span class="sc-ico">${svgIcon(icon, 20)}</span><b></b>`;
+  h.querySelector('b').textContent = title.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+  return h;
+}
+// Split one container's children into cards at each heading.
+function cardify(box, firstTitle) {
+  if (!box || box.dataset.cards) return;
+  box.dataset.cards = '1';
+  const kids = [...box.children];
+  let card = null;
+  const start = (title, headEl) => {
+    card = document.createElement('div'); card.className = 'sc-card';
+    card.append(setupCardHead(title));
+    if (headEl) { headEl.classList.add('sc-was-head'); card.append(headEl); }
+    box.append(card);
+  };
+  for (const k of kids) {
+    if (k.matches('.ui-label-accent')) { start(k.textContent, k); continue; }
+    if (k.matches('.dgroups, .dgroup, #dgroups')) { box.append(k); continue; } // Display's own switcher and groups stay as they are
+    if (!card) start(firstTitle, null);
+    card.append(k);
+  }
+  box.classList.add('sc-grid');
+}
+// Music's Auto-DJ and Sound cards, and the timer / message pop-ups' sections:
+// the same icon header as the Setup cards.
+function iconHeads() {
+  document.querySelectorAll('.mx-card > .mx-h:not([data-ic])').forEach((h) => {
+    h.dataset.ic = '1';
+    const head = setupCardHead(h.textContent.replace(/^\d+\s*·\s*/, ''));
+    if (/what to play|play/i.test(h.textContent)) head.style.setProperty('--c', '#FF9EC4');
+    h.replaceWith(head); head.classList.add('mx-h');
+  });
+}
+function wireSetupCards() {
+  iconHeads();
+  document.querySelectorAll('#sidebar-scroll > .sidebar-section').forEach((sec) => {
+    const head = sec.querySelector(':scope > .section-head'), body = sec.querySelector(':scope > .section-body');
+    if (!head || !body || sec.id === 'setup-home') return;
+    const name = head.textContent.replace(/[◈▾]/g, '').trim();
+    if (!/^(Display|AI assistant|Alexa|System)$/.test(name)) return;
+    if (name === 'Display') body.querySelectorAll('.dgroup').forEach((g) => cardify(g, (g.dataset.dgroup || 'Display').replace(/^./, (c) => c.toUpperCase())));
+    else cardify(body, name);
+  });
 }

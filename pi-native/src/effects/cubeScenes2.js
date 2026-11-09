@@ -1,4 +1,4 @@
-// Four effects made for the cube (each also fills a flat wall):
+// Three effects made for the cube (each also fills a flat wall):
 //   globe     - a slowly turning Earth: oceans, continents, ice caps, drifting
 //               clouds and city lights on the night side, with a real
 //               day/night line from the sun's position right now.
@@ -6,8 +6,6 @@
 //               (a gentle pulse without it), and the top flashes on the beat.
 //   lighthouse- a lighthouse beam sweeping round the cube over a night sea,
 //               the lamp glowing on the top.
-//   rainglass - rain on a window: drops gather, merge and run down the sides
-//               over a blurred city at night; the top is the grey sky.
 'use strict';
 const { defineFieldEffect } = require('./surface');
 const { sceneUV, ringUV, fbm, vnoise, hash2, clamp, smooth } = require('./sceneKit');
@@ -32,17 +30,21 @@ const globe = defineFieldEffect({
     const land = fbm(lx * 1.6 + 7, lz * 1.6 + d[1] * 1.3, 4) + fbm(d[1] * 2 + 3, lx * 1.3, 2) * 0.35;
     const ice = Math.abs(d[1]) > 0.86;
     let r, g, b;
+    // About a third land, like the real Earth: ocean blues, then green
+    // lowlands and brown uplands, white ice at the poles.
+    const SEA = 0.72; // about 30% of the surface is above this
     if (ice) { r = 0.85; g = 0.9; b = 0.95; }
-    else if (land > 0.62) { const k = (land - 0.62) * 3; r = 0.18 + k * 0.4; g = 0.38 + k * 0.15; b = 0.12; } // green to brown uplands
-    else { const deep = clamp((0.62 - land) * 4); r = 0.02; g = 0.12 + 0.12 * (1 - deep); b = 0.32 + 0.2 * (1 - deep); }
-    // Clouds drifting across.
-    const cl = smooth(0.55, 0.8, fbm(lx * 2.4 + t * 0.03, lz * 2.4 + d[1] * 2, 3));
-    r += (0.9 - r) * cl * 0.8; g += (0.92 - g) * cl * 0.8; b += (0.95 - b) * cl * 0.8;
+    else if (land > SEA) { const k = clamp((land - SEA) * 5); r = 0.08 + k * 0.3; g = 0.26 + k * 0.02; b = 0.07 + k * 0.06; }
+    else { const deep = clamp((SEA - land) * 5); r = 0.01; g = 0.08 + 0.14 * (1 - deep); b = 0.28 + 0.24 * (1 - deep); }
+    // Clouds drifting across, thinner.
+    const cl = smooth(0.6, 0.85, fbm(lx * 2.4 + t * 0.03, lz * 2.4 + d[1] * 2, 3));
+    r += (0.9 - r) * cl * 0.7; g += (0.92 - g) * cl * 0.7; b += (0.95 - b) * cl * 0.7;
     // Day and night: the sun's longitude from the time of day (UTC), so the terminator is real.
     const now = new Date(), sunLon = -((now.getUTCHours() + now.getUTCMinutes() / 60) / 24) * Math.PI * 2 + Math.PI + spin;
     const sx = Math.cos(sunLon), sz = Math.sin(sunLon), lit = clamp((Math.cos(lat) * (Math.cos(lon) * sx + Math.sin(lon) * sz)) * 4 + 0.5);
-    const cityLights = !ice && land > 0.64 && hash2(Math.floor(lx * 90 + 500), Math.floor(lz * 90 + d[1] * 60 + 500)) > 0.93 ? 0.6 : 0;
-    const k = 0.12 + 0.88 * lit, night = 1 - lit;
+    // City lights: small and sparse, only on land, away from the coast, and only in the dark.
+    const cityLights = !ice && land > SEA + 0.03 && cl < 0.3 && hash2(Math.floor(lx * 140 + 500), Math.floor(lz * 140 + d[1] * 90 + 500)) > 0.965 ? 0.7 : 0;
+    const k = 0.1 + 0.9 * lit, night = clamp(1 - lit * 1.6);
     return [r * k + cityLights * night * 1.0, g * k + cityLights * night * 0.8, b * k + cityLights * night * 0.4 + 0.015 * night];
   },
 });
@@ -90,7 +92,7 @@ const lighthouse = defineFieldEffect({
     else { const r = ringUV(p); [x, y] = r; top = !r[3] && !r[4]; bottom = r[4]; }
     const sweep = (t * 0.25) % 1; // the beam turns once every 4 seconds
     if (top) { // the lamp, seen from above, with the beam leaving it
-      const dx = x - 0.5, dz = y - 0.5, d = Math.hypot(dx, dz), a = (Math.atan2(dz, dx) / (Math.PI * 2) + 1) % 1;
+      const dx = x - 0.5, dz = y - 0.5, d = Math.hypot(dx, dz), a = (1 - Math.atan2(dz, dx) / (Math.PI * 2)) % 1; // mirrored, so it turns the same way as the beam on the sides
       const beam = Math.max(0, 1 - Math.abs(((a - sweep + 1.5) % 1) - 0.5) * 14) * clamp(1 - d * 1.4);
       const lamp = Math.exp(-d * d * 120);
       return [0.02 + lamp + beam * 0.9, 0.025 + lamp * 0.95 + beam * 0.85, 0.05 + lamp * 0.7 + beam * 0.6];
@@ -111,32 +113,4 @@ const lighthouse = defineFieldEffect({
   },
 });
 
-// ── Rain on glass ──
-const rainglass = defineFieldEffect({
-  fine: true,
-  speed: 1,
-  pixel(p, { t, core }) {
-    let x, y, w = 4, top = false;
-    if (p.flat) [x, y, w] = sceneUV(p, core);
-    else { const r = ringUV(p); [x, y] = r; top = !r[3]; }
-    if (top) { const c = 0.08 + 0.05 * fbm(x * 3 + t * 0.05, y * 3, 3); return [c * 0.8, c * 0.85, c]; } // grey sky
-    // The blurred city behind the glass: soft coloured lights.
-    const bx = x * 5, by = y * 5;
-    let r = 0.03, g = 0.035, b = 0.06;
-    for (let k = 0; k < 3; k++) {
-      const cx = Math.floor(bx) + hash2(Math.floor(bx), k) , cy = 2.5 + hash2(k, Math.floor(bx)) * 2.3, d = Math.hypot(bx - cx, by - cy);
-      const col = hsl(hash2(Math.floor(bx), k + 9) * 0.15 + (k === 1 ? 0.55 : 0.05), 0.9, 0.5), a = Math.exp(-d * d * 3) * 0.35;
-      r += col[0] * a; g += col[1] * a; b += col[2] * a;
-    }
-    // Drops: still beads everywhere, and runners sliding down their columns.
-    const gx = x * 22, gy = y * 22, ix = Math.floor(gx), iy = Math.floor(gy);
-    const bead = hash2(ix, iy) > 0.72 ? Math.max(0, 1 - Math.hypot(gx - ix - 0.5, gy - iy - 0.5) * 3.2) : 0;
-    const col = Math.floor(x * 9), sp = 0.25 + hash2(col, 3) * 0.35, ry = ((t * sp + hash2(col, 7)) % 1.3) - 0.15, rx = (col + 0.5) / 9 * w / w;
-    const dxr = (x - (col + 0.5 + Math.sin(y * 20 + col) * 0.15) / 9), runner = Math.max(0, 1 - Math.hypot(dxr * 40, (y - ry) * 30)) + (y < ry && Math.abs(dxr * 40) < 0.3 ? 0.25 * (1 - (ry - y) * 2) : 0);
-    const k = Math.min(1, bead + Math.max(0, runner));
-    // Water bends the light: drops show a bright rim and lighter centre.
-    return [r + k * 0.35, g + k * 0.4, b + k * 0.5];
-  },
-});
-
-module.exports = { globe, eqtower, lighthouse, rainglass };
+module.exports = { globe, eqtower, lighthouse };

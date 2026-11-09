@@ -1084,7 +1084,9 @@ function cxSyncMusic() {
   if (sb) {
     const on = currentState.effect === 'radio' && !!currentState.effectOptions?.radio?.spectrumOn;
     sb.title = on ? 'Hide the spectrum' : 'Show the spectrum on the display';
-    sb.textContent = on ? '📊 Spectrum on' : '📊 Spectrum';
+    // Equaliser bars that dance while the spectrum is on the display.
+    const html = `<span class="sb-bars${on ? ' on' : ''}" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>${on ? 'Spectrum on' : 'Spectrum'}</span>`;
+    if (sb.dataset.html !== html) { sb.innerHTML = html; sb.dataset.html = html; }
     sb.classList.toggle('active', on);
   }
   document.getElementById('cx-np-name').textContent = playing ? st.station.name.replace(/^[\s-]+/, '') : 'Nothing playing';

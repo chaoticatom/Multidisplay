@@ -1877,6 +1877,142 @@ body.hm .ov-body { background: transparent !important; border-top: 1px solid #17
   body.hm #cx-ring-wrap { width: 180px; height: 180px; }
 }
 
+/* Now (next gen): two columns on a wide page. */
+body.hm #now-section > .section-body > :not(#nx) { display: none !important; }
+body.hm #nx { display: flex; flex-direction: column; gap: 16px; }
+body.hm .nx-l, body.hm .nx-r { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+body.hm .nx-hero { border-radius: 24px !important; overflow: hidden; border: 1px solid #1A2130 !important; }
+body.hm .nx-hero-img { height: 200px !important; }
+body.hm .nx-hero-bar { padding: 14px 16px !important; background: #0D1118 !important; }
+body.hm .nx-name { font: 600 20px 'Space Grotesk', Inter, sans-serif !important; }
+body.hm .nx-hero-bar button { width: 40px; height: 40px; border-radius: 50% !important; border: 1px solid #232A38 !important; background: transparent !important; }
+body.hm .nx-hero-bar [data-nx="save"] { width: auto; padding: 0 14px !important; border-radius: 999px !important; background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; }
+body.hm .nx-hero-bar [data-nx="save"]::after { content: 'Save scene'; font: 600 13px Inter, sans-serif; margin-left: 6px; }
+body.hm .nx-pal { gap: 14px !important; flex-wrap: wrap; }
+body.hm .nx-pal button { width: 46px !important; height: 46px !important; border-radius: 50% !important; }
+body.hm .nx-quick { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+body.hm .nx-quick button { height: 64px; border-radius: 16px !important; border: 1px solid #171C26 !important; background: #0D1118 !important; color: var(--i) !important; }
+body.hm .nx-ov { display: flex !important; flex-wrap: wrap; gap: 8px; }
+body.hm .nx-ov button { width: auto !important; height: 38px !important; padding: 0 14px !important; border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #B9C2D3 !important; }
+body.hm .nx-ov button.on { border-color: #7FE6FF !important; color: #7FE6FF !important; background: rgba(127,230,255,0.12) !important; }
+body.hm .nx-ov button::after { content: attr(aria-label); font: 500 13px Inter, sans-serif; margin-left: 6px; }
+body.hm .nx-recent { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+body.hm #now-options { padding: 16px; border-radius: 20px; background: #0D1118; border: 1px solid #171C26; }
+@media (min-width: 1024px) {
+  body.hm #sidebar #nx { display: grid !important; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+}
+/* Scenes: big picture cards. */
+body.hm .scene-tiles { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+body.hm .scene-tile { position: relative; border: 0 !important; background: none !important; }
+body.hm .scene-go { width: 100%; display: flex !important; flex-direction: column; gap: 8px; padding: 0 !important; background: none !important; border: 0 !important; text-align: left; color: #E8ECF4; font: 600 14px Inter, sans-serif; }
+body.hm .scene-go canvas { width: 100% !important; height: auto !important; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 18px; box-shadow: 0 8px 24px #0006; }
+body.hm .scene-del { position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; border-radius: 50% !important; border: 0 !important; background: rgba(5,7,12,0.55) !important; color: #fff !important; opacity: 0; transition: opacity .15s; }
+body.hm .scene-tile:hover .scene-del { opacity: 1; }
+body.hm #scenes-section .section-body > .ui-note:first-child { display: none; }
+body.hm #playlist-row, body.hm #party-box { border-radius: 18px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; padding: 12px 14px !important; margin-top: 14px !important; }
+body.hm #scene-save-btn, body.hm .party-btn { border-radius: 999px !important; background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; font-weight: 600 !important; }
+/* Faces: the unfolded cube big, the face cards in a grid. */
+body.hm #pe-faces { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+body.hm #pe-faces .cx-net { grid-column: 1 / -1; max-width: 560px; }
+body.hm #pe-faces > :not(.cx-net) { margin: 0 !important; border-radius: 20px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; }
+/* Draw pop-up: tools left, a big canvas right. */
+body.hm #draw-modal .tm-sheet { width: min(1000px, 94vw) !important; max-width: none !important; display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px 20px; background: #090C12 !important; border: 1px solid #1A2130 !important; border-radius: 24px !important; }
+body.hm #draw-modal .tm-top { grid-column: 1 / -1; }
+body.hm .dm-tools { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+body.hm .dm-stage { display: grid; place-items: center; padding: 10px; border-radius: 20px; background: #05070C; border: 1px solid #171C26; }
+body.hm .dm-stage #draw-canvas { max-width: min(560px, 60vh) !important; width: 100% !important; margin: 0 !important; }
+body.hm #draw-colours button { width: 34px; height: 34px; border-radius: 50% !important; }
+body.hm #draw-save { background: #E8ECF4 !important; color: #0A0C11 !important; border-radius: 999px !important; border: 0 !important; }
+body.hm #draw-undo, body.hm #draw-clear { border-radius: 999px !important; }
+@media (max-width: 768px) {
+  body.hm #draw-modal .tm-sheet { grid-template-columns: 1fr; }
+  body.hm .dm-stage { order: -1; grid-row: 2; }
+  body.hm .nx-quick { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Expand: on a page, one tap shows the cube big again. */
+.hm-full { display: none !important; }
+body.hm.hm-sheet .hm-full { display: grid !important; }
+body.hm .nx-quick button { width: auto !important; }
+body.hm .nx-ov button { display: inline-flex !important; align-items: center; gap: 6px; }
+body.hm .nx-ov button svg { width: 16px; height: 16px; }
+body.hm #draw-colours { gap: 10px !important; }
+body.hm #draw-colours > * { flex: 0 0 34px !important; width: 34px !important; height: 34px !important; min-width: 0 !important; padding: 0 !important; border-radius: 50% !important; }
+body.hm #scenes-section .cx-info, body.hm #scenes-section .ui-info { display: none !important; }
+
+/* Setup tabs (next gen): cards, two across on a wide page. */
+body.hm #sidebar .sc-grid, body.hm #sidebar .section-body.sc-grid, body.hm #sidebar .dgroup.sc-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+body.hm .sc-grid > .dgroups, body.hm .sc-grid > #dgroups { grid-column: 1 / -1; }
+body.hm .sc-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: #0D1118; border: 1px solid #171C26; min-width: 0; }
+body.hm .sc-card .sc-was-head { display: none !important; }
+body.hm .sc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+body.hm .sc-ico { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }
+body.hm .sc-head b { font: 600 15px Inter, sans-serif; color: #E8ECF4; }
+body.hm .sc-card .ui-note { font-size: 12.5px !important; color: #8892A6 !important; margin: 0 !important; }
+body.hm .sc-card button.ui-btn-primary, body.hm .sc-card button.ui-btn, body.hm .sc-card button.ui-btn-small, body.hm .sc-card button.ui-btn-danger { width: auto !important; flex: 0 0 auto !important; height: 36px; padding: 0 16px !important; border-radius: 999px !important; font: 600 13px Inter, sans-serif !important; margin: 0 !important; }
+body.hm .sc-card button.ui-btn-primary { background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; }
+body.hm .sc-card button.ui-btn-danger { background: transparent !important; border: 1px solid #FF7A7A !important; color: #FF7A7A !important; }
+body.hm .sc-card > div[style*="display:flex"] { flex-wrap: wrap; gap: 8px !important; margin: 0 !important; }
+body.hm .sc-card .ui-input, body.hm .sc-card input[type=text], body.hm .sc-card input[type=password], body.hm .sc-card input[type=url], body.hm .sc-card select { height: 40px; border-radius: 12px !important; background: #0A0D13 !important; border: 1px solid #171C26 !important; }
+body.hm .sc-card .check-row { font-size: 13px; color: #E8ECF4; }
+body.hm .sc-card details { border-radius: 12px; background: #0A0D13; border: 1px solid #171C26; padding: 10px 12px; }
+@media (max-width: 768px) { body.hm .sc-grid { grid-template-columns: 1fr; } }
+
+/* Spectrum: equaliser bars that dance while it's on; "This device" as a pill switch. */
+.sb-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; margin-right: 8px; vertical-align: -2px; }
+.sb-bars i { width: 3px; border-radius: 2px; background: currentColor; height: 40%; }
+.sb-bars i:nth-child(2) { height: 80%; } .sb-bars i:nth-child(3) { height: 55%; } .sb-bars i:nth-child(4) { height: 100%; }
+.sb-bars.on i { animation: sb-bounce 0.9s ease-in-out infinite; } .sb-bars.on i:nth-child(2) { animation-delay: -.3s; } .sb-bars.on i:nth-child(3) { animation-delay: -.6s; } .sb-bars.on i:nth-child(4) { animation-delay: -.15s; }
+@keyframes sb-bounce { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+body.hm #cx-show-spectrum { display: inline-flex !important; align-items: center; color: #FF9EC4 !important; }
+body.hm #cx-show-spectrum.active { background: rgba(255,158,196,0.14) !important; border-color: #FF9EC4 !important; box-shadow: 0 0 18px rgba(255,158,196,0.25) !important; }
+body.hm .mx-out .mx-chip { display: inline-flex !important; align-items: center; gap: 8px; height: 38px; padding: 0 14px !important; color: #B9C2D3 !important; cursor: pointer; }
+body.hm .mx-out .mx-chip input { position: absolute; opacity: 0; pointer-events: none; }
+body.hm .mx-out .mx-chip:has(input:checked) { color: #7FE6FF !important; border-color: #7FE6FF !important; background: rgba(127,230,255,0.12) !important; }
+body.hm .mx-out .mx-chip:focus-within { outline: 2px solid #7FE6FF; outline-offset: 2px; }
+
+body.hm #sidebar .dgroup.sc-grid { border: 0 !important; background: none !important; padding: 0 !important; }
+body.hm #dgroups { display: inline-flex !important; align-self: flex-start; width: auto !important; gap: 4px; padding: 4px !important; border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; margin-bottom: 14px !important; }
+body.hm #dgroups button { flex: 0 0 auto !important; height: 30px; padding: 0 16px !important; border-radius: 999px !important; background: transparent !important; color: #8892A6 !important; border: 0 !important; font: 500 13px Inter, sans-serif !important; }
+body.hm #dgroups button.on { background: #E8ECF4 !important; color: #0A0C11 !important; font-weight: 600 !important; }
+body.hm .sc-card .check-row, body.hm .sc-card label { text-transform: none !important; letter-spacing: 0 !important; }
+
+body.hm .sc-grid > .sc-card:only-of-type { grid-column: 1 / -1; }
+
+/* Auto-DJ and Sound: cards side by side. */
+body.hm .mx-pane[data-mx="dj"], body.hm .mx-pane[data-mx="sound"] { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+body.hm .mx-pane[hidden] { display: none !important; }
+body.hm .mx-pane > .mxg-title { grid-column: 1 / -1; }
+body.hm .mx-card { margin: 0 !important; padding: 16px !important; border-radius: 20px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; box-shadow: none !important; display: flex; flex-direction: column; gap: 10px; }
+body.hm .mx-card .mx-fold { background: #0A0D13 !important; box-shadow: none !important; border: 1px solid #171C26; }
+body.hm .mx-src3 button, body.hm .tm-chips button { border-radius: 999px !important; }
+body.hm .bt-paired-list-el > *, body.hm .bt-device-list-el > * { border-radius: 14px !important; background: #0A0D13 !important; border: 1px solid #171C26 !important; }
+body.hm .mx-card button[class*="bt-"] { border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; height: 36px; }
+body.hm .mx-card .bt-scan-btn-el { background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; font-weight: 600; }
+
+/* Pop-ups (timer editor, message, draw): the same dark card look. */
+body.hm .tm-modal { background: rgba(3,5,8,0.7) !important; backdrop-filter: blur(6px); }
+body.hm .tm-sheet { background: #090C12 !important; border: 1px solid #1A2130 !important; border-radius: 24px !important; box-shadow: 0 30px 80px #000c !important; }
+body.hm .tm-top b { font: 600 20px 'Space Grotesk', Inter, sans-serif !important; color: #E8ECF4; }
+body.hm .tm-x { width: 36px; height: 36px; border-radius: 50% !important; background: rgba(255,255,255,0.06) !important; border: 0 !important; }
+body.hm .tm-time { font: 600 44px 'Space Grotesk', Inter, sans-serif !important; background: #0D1118 !important; border: 1px solid #171C26 !important; border-radius: 18px !important; color: #E8ECF4 !important; }
+body.hm .tm-label, body.hm .tm-sheet .ov-row-label { font-size: 12px !important; color: #8892A6 !important; text-transform: none !important; letter-spacing: 0 !important; }
+body.hm .tm-chips button { height: 36px; padding: 0 14px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #B9C2D3 !important; font: 500 13px Inter, sans-serif !important; }
+body.hm .tm-chips button.on { background: #E8ECF4 !important; color: #0A0C11 !important; border-color: #E8ECF4 !important; font-weight: 600 !important; }
+body.hm .tm-days button { width: 38px; height: 38px; border-radius: 50% !important; }
+body.hm .tm-select, body.hm .tm-input { height: 42px; border-radius: 12px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; color: #E8ECF4 !important; }
+body.hm .tm-btn { height: 42px; border-radius: 999px !important; font: 600 14px Inter, sans-serif !important; }
+body.hm .tm-primary { background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; }
+body.hm .tm-danger { background: transparent !important; border: 1px solid #FF7A7A !important; color: #FF7A7A !important; }
+
+/* Effect options (Now tab and the options button): flat card controls. */
+body.hm #now-options .effect-panel { background: none !important; border: 0 !important; padding: 0 !important; }
+body.hm #now-options .strobe-mode-btn, body.hm #now-options .opt-grid button { border-radius: 14px !important; min-height: 44px; }
+body.hm .ui-label-accent { font-size: 12px !important; letter-spacing: 0 !important; text-transform: none !important; color: #8892A6 !important; }
+
+body.hm #sidebar .subtab-bar[hidden] { display: none !important; }
+body.hm .sc-head b, body.hm .sc-head.mx-h, body.hm .sc-head.mx-h b { text-transform: none !important; letter-spacing: 0 !important; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -2152,7 +2288,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
     <button class="effect-btn" data-effect="globe">◈ Globe</button>
     <button class="effect-btn" data-effect="eqtower">◈ Equaliser Tower</button>
     <button class="effect-btn" data-effect="lighthouse">◈ Lighthouse</button>
-    <button class="effect-btn" data-effect="rainglass">◈ Rain on Glass</button>
     <button class="effect-btn has-panel" data-effect="balls">◈ Bouncing Balls <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-balls">
       <div class="ov-row-label">Mode</div>
@@ -2873,7 +3008,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
           <button type="button" id="cx-show-spectrum" class="mx-btn mx-spec" title="Show the spectrum on the display">📊 Spectrum</button>
         </div>
         <div class="mx-out">
-          <label class="mx-chip" title="Also play the sound on this phone, tablet or PC"><input type="checkbox" class="radio-browser-play-el" checked> 🎧 Hear it on this device too</label>
+          <label class="mx-chip" title="Also play the sound on this phone, tablet or PC"><input type="checkbox" class="radio-browser-play-el" checked><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"/><rect x="2" y="14" width="5" height="7" rx="2"/><rect x="17" y="14" width="5" height="7" rx="2"/></svg> This device too</label>
         </div>
         <div class="mx-rate" id="dj-rate" hidden><span id="dj-rate-txt">How was that mix?</span><button type="button" data-rate="1" aria-label="Good mix">👍</button><button type="button" data-rate="0" aria-label="Bad mix">👎</button></div>
         <div class="radio-status-el mx-status">Pick a station</div>
@@ -3639,7 +3774,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
 <div id="hm-stage" aria-hidden="true"></div>
 <section id="hm-over" aria-label="Live cube">
   <span id="hm-name">&nbsp;</span>
-  <span class="hm-tbtns"><button type="button" class="hm-t" data-ht="prev" aria-label="Previous effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg></button><button type="button" class="hm-t" data-ht="opts" aria-label="Effect options"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button><button type="button" class="hm-t" data-ht="next" aria-label="Next effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></span>
+  <span class="hm-tbtns"><button type="button" class="hm-t hm-full" data-ht="full" aria-label="Show the cube big" title="Show the cube big"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button><button type="button" class="hm-t" data-ht="prev" aria-label="Previous effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg></button><button type="button" class="hm-t" data-ht="opts" aria-label="Effect options"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button><button type="button" class="hm-t" data-ht="next" aria-label="Next effect"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></span>
   <span class="hm-mquick"><button type="button" class="hm-q" data-hq="party" aria-label="Party" title="Party" style="--c:#FF9EC4"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.8 11.3 2 22l10.7-3.8"/><path d="M8.6 8.6l6.8 6.8"/><path d="M14 4l1-2M20 10l2-1M18 5l2-2"/></svg></button><button type="button" class="hm-q" data-hq="bed" aria-label="Bedtime" title="Bedtime" style="--c:#C9D1FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button><button type="button" class="hm-q" data-hq="note" aria-label="Message" title="Message" style="--c:#7FE6FF"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg></button></span>
 </section>
 <aside id="hm-col" aria-label="Controls">
@@ -3701,6 +3836,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.15"></script>
+<script src="app.js?v=0.7.16"></script>
 </body>
 </html>

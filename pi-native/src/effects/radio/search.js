@@ -35,8 +35,29 @@ async function radioBrowserFetch(path) {
 // query: string (empty/falsy -> "top clicked" browse list, matching the
 // original's no-query behaviour). Returns {results, error} - never throws,
 // same "degrade cleanly" contract as fetchWeather().
+// Featured, by genre: the most-voted stations for each tag below, fetched
+// together (query 'genres:'). Each station is labelled with the tag it was
+// found under first, so the page can group it.
+const GENRE_TAGS = ['chillout', 'lofi', 'ambient', 'electronic', 'house', 'techno', 'jazz', 'soul', 'blues', 'rock', 'indie', 'pop', '80s', 'classical', 'news', 'talk'];
+const PER_TAG = 12;
+async function genreStations() {
+  const lists = await Promise.all(GENRE_TAGS.map((tag) => radioBrowserFetch('/json/stations/bytagexact/' + encodeURIComponent(tag) + '?limit=' + PER_TAG + '&hidebroken=true&order=votes&reverse=true').catch(() => [])));
+  const seen = new Set(), results = [];
+  lists.forEach((list, i) => {
+    for (const s of list || []) {
+      const url = s.url_resolved || s.url;
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      results.push({ name: s.name || 'Unnamed station', genre: GENRE_TAGS[i] + ((s.tags || '').split(',').filter((t) => t && t !== GENRE_TAGS[i]).slice(0, 1).map((t) => ', ' + t).join('')), url });
+    }
+  });
+  if (!results.length) throw new Error('no stations');
+  return results;
+}
+
 async function searchStations(query) {
   try {
+    if (query === 'genres:') return { results: await genreStations(), error: null };
     const path = query
       ? '/json/stations/search?name=' + encodeURIComponent(query) + '&limit=60&hidebroken=true&order=clickcount&reverse=true'
       : '/json/stations/topclick/60?hidebroken=true';
@@ -52,4 +73,4 @@ async function searchStations(query) {
   }
 }
 
-module.exports = { searchStations, RADIO_BROWSER_MIRRORS };
+module.exports = { searchStations, RADIO_BROWSER_MIRRORS, GENRE_TAGS };

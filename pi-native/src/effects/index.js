@@ -59,7 +59,7 @@ const depthRings = require('./depthRings');
 const prism = require('./prism');
 const tide = require('./tide');
 const rubiks = require('./rubiks'); // Rubik's Cube
-const cubeScenes2 = require('./cubeScenes2'); // Globe, Equaliser Tower, Lighthouse, Rain on Glass
+const cubeScenes2 = require('./cubeScenes2'); // Globe, Equaliser Tower, Lighthouse
 const aquarium = require('./aquarium'); // Aquarium
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
 const { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require('./cubeTops'); // cube top pictures for text/info effects
@@ -141,7 +141,6 @@ const WALL_EFFECTS = {
   globe: cubeScenes2.globe.wall,
   eqtower: cubeScenes2.eqtower.wall,
   lighthouse: cubeScenes2.lighthouse.wall,
-  rainglass: cubeScenes2.rainglass.wall,
   aquarium: aquarium.wall,
   ai_art: aiArt.wall,
   gradient_wash: gradientWashWall,
@@ -211,7 +210,6 @@ const EFFECTS = {
   globe: cubeScenes2.globe,
   eqtower: cubeScenes2.eqtower,
   lighthouse: cubeScenes2.lighthouse,
-  rainglass: cubeScenes2.rainglass,
   aquarium,
   ai_art: aiArt,
   wave,
@@ -288,7 +286,6 @@ const EFFECT_NAMES = {
   globe: 'Globe',
   eqtower: 'Equaliser Tower',
   lighthouse: 'Lighthouse',
-  rainglass: 'Rain on Glass',
   aquarium: 'Aquarium',
   ai_art: 'AI Art',
   wave: 'Colour Falls',

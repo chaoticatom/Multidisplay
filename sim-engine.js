@@ -7278,8 +7278,25 @@ var PiEngine = (() => {
         }
         throw lastErr || new Error("all mirrors failed");
       }
+      var GENRE_TAGS = ["chillout", "lofi", "ambient", "electronic", "house", "techno", "jazz", "soul", "blues", "rock", "indie", "pop", "80s", "classical", "news", "talk"];
+      var PER_TAG = 12;
+      async function genreStations() {
+        const lists = await Promise.all(GENRE_TAGS.map((tag) => radioBrowserFetch("/json/stations/bytagexact/" + encodeURIComponent(tag) + "?limit=" + PER_TAG + "&hidebroken=true&order=votes&reverse=true").catch(() => [])));
+        const seen = /* @__PURE__ */ new Set(), results = [];
+        lists.forEach((list, i) => {
+          for (const s of list || []) {
+            const url = s.url_resolved || s.url;
+            if (!url || seen.has(url)) continue;
+            seen.add(url);
+            results.push({ name: s.name || "Unnamed station", genre: GENRE_TAGS[i] + (s.tags || "").split(",").filter((t) => t && t !== GENRE_TAGS[i]).slice(0, 1).map((t) => ", " + t).join(""), url });
+          }
+        });
+        if (!results.length) throw new Error("no stations");
+        return results;
+      }
       async function searchStations(query) {
         try {
+          if (query === "genres:") return { results: await genreStations(), error: null };
           const path = query ? "/json/stations/search?name=" + encodeURIComponent(query) + "&limit=60&hidebroken=true&order=clickcount&reverse=true" : "/json/stations/topclick/60?hidebroken=true";
           const data = await radioBrowserFetch(path);
           const results = (data || []).filter((s) => s.url_resolved || s.url).map((s) => ({
@@ -7292,7 +7309,7 @@ var PiEngine = (() => {
           return { results: [], error: "Directory unreachable \u2014 try again, or use the featured list below" };
         }
       }
-      module.exports = { searchStations, RADIO_BROWSER_MIRRORS };
+      module.exports = { searchStations, RADIO_BROWSER_MIRRORS, GENRE_TAGS };
     }
   });
 
@@ -21305,29 +21322,30 @@ var PiEngine = (() => {
           const land = fbm(lx * 1.6 + 7, lz * 1.6 + d[1] * 1.3, 4) + fbm(d[1] * 2 + 3, lx * 1.3, 2) * 0.35;
           const ice = Math.abs(d[1]) > 0.86;
           let r, g, b;
+          const SEA = 0.72;
           if (ice) {
             r = 0.85;
             g = 0.9;
             b = 0.95;
-          } else if (land > 0.62) {
-            const k2 = (land - 0.62) * 3;
-            r = 0.18 + k2 * 0.4;
-            g = 0.38 + k2 * 0.15;
-            b = 0.12;
+          } else if (land > SEA) {
+            const k2 = clamp((land - SEA) * 5);
+            r = 0.08 + k2 * 0.3;
+            g = 0.26 + k2 * 0.02;
+            b = 0.07 + k2 * 0.06;
           } else {
-            const deep = clamp((0.62 - land) * 4);
-            r = 0.02;
-            g = 0.12 + 0.12 * (1 - deep);
-            b = 0.32 + 0.2 * (1 - deep);
+            const deep = clamp((SEA - land) * 5);
+            r = 0.01;
+            g = 0.08 + 0.14 * (1 - deep);
+            b = 0.28 + 0.24 * (1 - deep);
           }
-          const cl = smooth(0.55, 0.8, fbm(lx * 2.4 + t * 0.03, lz * 2.4 + d[1] * 2, 3));
-          r += (0.9 - r) * cl * 0.8;
-          g += (0.92 - g) * cl * 0.8;
-          b += (0.95 - b) * cl * 0.8;
+          const cl = smooth(0.6, 0.85, fbm(lx * 2.4 + t * 0.03, lz * 2.4 + d[1] * 2, 3));
+          r += (0.9 - r) * cl * 0.7;
+          g += (0.92 - g) * cl * 0.7;
+          b += (0.95 - b) * cl * 0.7;
           const now = /* @__PURE__ */ new Date(), sunLon = -((now.getUTCHours() + now.getUTCMinutes() / 60) / 24) * Math.PI * 2 + Math.PI + spin;
           const sx = Math.cos(sunLon), sz = Math.sin(sunLon), lit = clamp(Math.cos(lat) * (Math.cos(lon) * sx + Math.sin(lon) * sz) * 4 + 0.5);
-          const cityLights = !ice && land > 0.64 && hash2(Math.floor(lx * 90 + 500), Math.floor(lz * 90 + d[1] * 60 + 500)) > 0.93 ? 0.6 : 0;
-          const k = 0.12 + 0.88 * lit, night = 1 - lit;
+          const cityLights = !ice && land > SEA + 0.03 && cl < 0.3 && hash2(Math.floor(lx * 140 + 500), Math.floor(lz * 140 + d[1] * 90 + 500)) > 0.965 ? 0.7 : 0;
+          const k = 0.1 + 0.9 * lit, night = clamp(1 - lit * 1.6);
           return [r * k + cityLights * night * 1, g * k + cityLights * night * 0.8, b * k + cityLights * night * 0.4 + 0.015 * night];
         }
       });
@@ -21383,7 +21401,7 @@ var PiEngine = (() => {
           }
           const sweep = t * 0.25 % 1;
           if (top) {
-            const dx = x - 0.5, dz = y - 0.5, d = Math.hypot(dx, dz), a = (Math.atan2(dz, dx) / (Math.PI * 2) + 1) % 1;
+            const dx = x - 0.5, dz = y - 0.5, d = Math.hypot(dx, dz), a = (1 - Math.atan2(dz, dx) / (Math.PI * 2)) % 1;
             const beam2 = Math.max(0, 1 - Math.abs((a - sweep + 1.5) % 1 - 0.5) * 14) * clamp(1 - d * 1.4);
             const lamp = Math.exp(-d * d * 120);
             return [0.02 + lamp + beam2 * 0.9, 0.025 + lamp * 0.95 + beam2 * 0.85, 0.05 + lamp * 0.7 + beam2 * 0.6];
@@ -21410,39 +21428,7 @@ var PiEngine = (() => {
           return [clamp(r, 0, 1.2), clamp(g, 0, 1.2), clamp(b, 0, 1.2)];
         }
       });
-      var rainglass = defineFieldEffect({
-        fine: true,
-        speed: 1,
-        pixel(p, { t, core }) {
-          let x, y, w = 4, top = false;
-          if (p.flat) [x, y, w] = sceneUV(p, core);
-          else {
-            const r2 = ringUV(p);
-            [x, y] = r2;
-            top = !r2[3];
-          }
-          if (top) {
-            const c = 0.08 + 0.05 * fbm(x * 3 + t * 0.05, y * 3, 3);
-            return [c * 0.8, c * 0.85, c];
-          }
-          const bx = x * 5, by = y * 5;
-          let r = 0.03, g = 0.035, b = 0.06;
-          for (let k2 = 0; k2 < 3; k2++) {
-            const cx = Math.floor(bx) + hash2(Math.floor(bx), k2), cy = 2.5 + hash2(k2, Math.floor(bx)) * 2.3, d = Math.hypot(bx - cx, by - cy);
-            const col2 = hsl(hash2(Math.floor(bx), k2 + 9) * 0.15 + (k2 === 1 ? 0.55 : 0.05), 0.9, 0.5), a = Math.exp(-d * d * 3) * 0.35;
-            r += col2[0] * a;
-            g += col2[1] * a;
-            b += col2[2] * a;
-          }
-          const gx = x * 22, gy = y * 22, ix = Math.floor(gx), iy = Math.floor(gy);
-          const bead = hash2(ix, iy) > 0.72 ? Math.max(0, 1 - Math.hypot(gx - ix - 0.5, gy - iy - 0.5) * 3.2) : 0;
-          const col = Math.floor(x * 9), sp = 0.25 + hash2(col, 3) * 0.35, ry = (t * sp + hash2(col, 7)) % 1.3 - 0.15, rx = (col + 0.5) / 9 * w / w;
-          const dxr = x - (col + 0.5 + Math.sin(y * 20 + col) * 0.15) / 9, runner = Math.max(0, 1 - Math.hypot(dxr * 40, (y - ry) * 30)) + (y < ry && Math.abs(dxr * 40) < 0.3 ? 0.25 * (1 - (ry - y) * 2) : 0);
-          const k = Math.min(1, bead + Math.max(0, runner));
-          return [r + k * 0.35, g + k * 0.4, b + k * 0.5];
-        }
-      });
-      module.exports = { globe, eqtower, lighthouse, rainglass };
+      module.exports = { globe, eqtower, lighthouse };
     }
   });
 
@@ -32306,7 +32292,6 @@ var PiEngine = (() => {
         globe: cubeScenes2.globe.wall,
         eqtower: cubeScenes2.eqtower.wall,
         lighthouse: cubeScenes2.lighthouse.wall,
-        rainglass: cubeScenes2.rainglass.wall,
         aquarium: aquarium.wall,
         ai_art: aiArt.wall,
         gradient_wash: gradientWashWall,
@@ -32375,7 +32360,6 @@ var PiEngine = (() => {
         globe: cubeScenes2.globe,
         eqtower: cubeScenes2.eqtower,
         lighthouse: cubeScenes2.lighthouse,
-        rainglass: cubeScenes2.rainglass,
         aquarium,
         ai_art: aiArt,
         wave,
@@ -32451,7 +32435,6 @@ var PiEngine = (() => {
         globe: "Globe",
         eqtower: "Equaliser Tower",
         lighthouse: "Lighthouse",
-        rainglass: "Rain on Glass",
         aquarium: "Aquarium",
         ai_art: "AI Art",
         wave: "Colour Falls",
