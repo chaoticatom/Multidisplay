@@ -79,6 +79,7 @@ function wireHome() {
     if (hmPlaying()) { send({ cmd: 'radioStop' }); if (typeof radioBrowserStop === 'function') radioBrowserStop(); }
     else hmOpen('music');
   });
+  wireMusicNext();
   // Start on the cube, the menus tucked away.
   if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
   document.body.classList.toggle('hm-sheet', menuOpen);
@@ -141,6 +142,7 @@ function syncHome() {
     document.querySelector('[data-hm="music"]').classList.toggle('spin', playing);
   }
   hmSyncSetup();
+  mxgSync();
   // Dock: five favourites (or the first effects), the playing one outlined.
   const box = document.getElementById('hm-favs');
   if (!box || typeof effectNames !== 'object' || !effectNames) return;
@@ -175,4 +177,96 @@ function hmSyncSetup() {
     if (sm.textContent !== v[0]) sm.textContent = v[0];
     sm.classList.toggle('ok', v[1]);
   });
+}
+
+// ── Music page (next gen): stations as picture cards grouped by genre.
+// The Radio pane's lists (Mine, Recent, Featured, search / Top 60) keep their
+// logic in 50-radio-audio.js and 95-main-ui.js; in the home layout they're
+// hidden and #mxg draws whichever one is showing as genre rows instead.
+const MX_GENRES = [
+  { name: 'Chill & lo-fi', c: '#FF9EC4', re: /chill|lo-?fi|ambient|downtempo|lounge|relax|drone|space|easy|sleep|meditat|mellow/ },
+  { name: 'Electronic', c: '#7FE6FF', re: /electr|house|techno|trance|dance|edm|synth|drum|dnb|beat|club|dubstep/ },
+  { name: 'Jazz & soul', c: '#FFD24C', re: /jazz|soul|blues|funk|r&b|rnb|swing|motown/ },
+  { name: 'Rock & indie', c: '#FF7A7A', re: /rock|indie|alternative|metal|punk|americana|country|folk|grunge/ },
+  { name: 'Pop & hits', c: '#C9A6FF', re: /pop|hits|top ?40|80s|90s|70s|oldies|chart|disco/ },
+  { name: 'Classical', c: '#9BE89A', re: /classic(al)?\b|orchestra|opera|baroque|piano|symphon/ },
+  { name: 'News & talk', c: '#B9C2D3', re: /news|talk|sport|speech|public radio|bbc radio 4/ },
+];
+const MX_MORE = { name: 'More', c: '#8892A6' };
+function mxGenreOf(st) {
+  const t = ((st.genre || '') + ' ' + (st.name || '')).toLowerCase();
+  return MX_GENRES.find((g) => g.re.test(t)) || MX_MORE;
+}
+// A steady colour per station, in its genre's family.
+function mxCardBg(st, g) {
+  let h = 0; for (const ch of st.name || '') h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return `linear-gradient(135deg, ${g.c}, color-mix(in oklab, hsl(${(h >> 3) % 360} 70% 35%) 55%, #0A0C11))`;
+}
+function mxCard(st, current) {
+  const g = mxGenreOf(st), on = current && current.url === st.url;
+  const fav = (currentState.prefs?.stations || []).some((x) => x.url === st.url);
+  const b = document.createElement('div'); b.className = 'mxg-card' + (on ? ' on' : ''); b.setAttribute('role', 'button'); b.tabIndex = 0;
+  b.title = st.name + (st.genre ? ' · ' + st.genre : '');
+  b.innerHTML = `<span class="mxg-art" style="background:${mxCardBg(st, g)}"><span class="mxg-ini">${escHtml((st.name || '?').replace(/^(somafm|radio)\s+/i, '').slice(0, 2))}</span><button type="button" class="mxg-fav${fav ? ' on' : ''}" aria-label="${fav ? 'Remove from' : 'Add to'} My stations">★</button><span class="mxg-play">${on ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>' : '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>'}</span></span><b>${escHtml(st.name)}</b><small>${escHtml(st.genre || '')}</small>`;
+  const play = () => {
+    if (on) { send({ cmd: 'radioStop' }); if (typeof radioBrowserStop === 'function') radioBrowserStop(); return; }
+    const s = { name: st.name, genre: st.genre || '', url: st.url };
+    send({ cmd: 'radioPlay', station: s }); radioBrowserPlay(s);
+  };
+  b.addEventListener('click', play);
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(); } });
+  b.querySelector('.mxg-fav').addEventListener('click', (e) => { e.stopPropagation(); send({ cmd: 'toggleStationFav', station: { name: st.name, genre: st.genre || '', url: st.url } }); });
+  return b;
+}
+let _mxgKey = '', _mxgTopAsked = false;
+function mxgSync() {
+  const box = document.getElementById('mxg');
+  if (!box || !document.body.classList.contains('hm')) return;
+  const status = currentState.effectStatus?.radio || {}, current = status.playing ? status.station : null;
+  const search = status.search, shown = document.querySelector('.mx-list:not([hidden])')?.dataset.mxl || 'featured';
+  let list = [], note = '';
+  if (shown === 'mine') { list = currentState.prefs?.stations || []; note = 'Tap ★ on any station to keep it here.'; }
+  else if (shown === 'recent') { try { list = JSON.parse(localStorage.getItem('recentStations') || '[]'); } catch (e) { /* storage blocked */ } note = 'Stations you play show up here.'; }
+  else if (shown === 'search') { list = search?.results || []; note = search?.searching ? 'Searching…' : search?.error ? 'Search failed: ' + search.error : 'Search for a name, genre or city.'; }
+  else {
+    // Featured: the built-in stations plus the most-played ones worldwide,
+    // fetched once so every genre has something in it.
+    list = [...RADIO_STATIONS, ...(search && !search.searching && !document.querySelector('.radio-search-input-el')?.value ? search.results || [] : [])];
+    if (!_mxgTopAsked && !(search?.results || []).length && document.getElementById('sidebar')?.offsetParent !== null && document.body.dataset.tab === 'music') { _mxgTopAsked = true; send({ cmd: 'radioSearch', query: '' }); }
+  }
+  const seen = new Set(); list = list.filter((s) => s && s.url && !seen.has(s.url) && seen.add(s.url));
+  const favs = (currentState.prefs?.stations || []).map((x) => x.url).join(',');
+  const key = JSON.stringify([shown, list.map((s) => s.url), current?.url || '', favs, note]);
+  if (key === _mxgKey) return;
+  _mxgKey = key;
+  if (!list.length) { box.replaceChildren(Object.assign(document.createElement('div'), { className: 'mxg-empty', textContent: note })); return; }
+  const groups = new Map();
+  for (const st of list) { const g = mxGenreOf(st); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(st); }
+  const order = [...MX_GENRES, MX_MORE].filter((g) => groups.has(g));
+  box.replaceChildren(...order.map((g) => {
+    const sec = document.createElement('section'); sec.className = 'mxg-row';
+    const head = document.createElement('div'); head.className = 'mxg-head';
+    head.innerHTML = `<i style="background:${g.c};box-shadow:0 0 8px ${g.c}"></i><b>${g.name}</b><small>${groups.get(g).length}</small>`;
+    const cards = document.createElement('div'); cards.className = 'mxg-cards';
+    cards.append(...groups.get(g).map((st) => mxCard(st, current)));
+    sec.append(head, cards);
+    return sec;
+  }));
+}
+// Source tabs as icon tiles.
+function wireMusicNext() {
+  const ICON = {
+    radio: '<circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/>',
+    dj: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/>',
+    sound: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  };
+  const LABEL = { radio: 'Radio', dj: 'Auto-DJ', sound: 'Sound' };
+  document.querySelectorAll('.mx-seg [data-mx]').forEach((b) => { const k = b.dataset.mx; if (ICON[k]) b.innerHTML = `<span class="mx-seg-i">${svgIcon(ICON[k], 22)}</span><span>${LABEL[k]}</span>`; });
+  const pane = document.querySelector('.mx-pane[data-mx="radio"]'), filters = document.getElementById('mx-filters');
+  if (pane && filters && !document.getElementById('mxg')) {
+    const box = document.createElement('div'); box.id = 'mxg'; filters.after(box);
+    const h = document.createElement('div'); h.className = 'mxg-title'; h.textContent = 'Radio'; pane.prepend(h);
+  }
+  document.querySelectorAll('#mx-filters [data-mxf], .mx-search .radio-search-btn-el').forEach((b) => b.addEventListener('click', () => setTimeout(mxgSync, 0)));
+  document.querySelector('.mx-search .radio-search-input-el')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') setTimeout(mxgSync, 0); });
 }

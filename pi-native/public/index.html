@@ -1753,6 +1753,74 @@ body.hm #effects-body .sub-head { background: none !important; border: 0 !import
 body.hm #effects-body .sub-section { background: none !important; border: 0 !important; }
 @media (max-width: 768px) { body.hm #effects-body .sub-section:not(.collapsed) > .sub-body, body.hm #effects-body.chips-all .sub-section > .sub-body { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; } }
 
+/* Music page (next gen): player, speaker and source tiles on the left,
+   stations as picture cards grouped by genre on the right. */
+body.hm #mx, body.hm .mx-list, body.hm #mx-badge { display: none !important; }
+body.hm #panel-radio.mx-root { background: none !important; border: 0 !important; padding: 0 !important; display: flex !important; flex-direction: column; gap: 14px; }
+body.hm #mx-player { border-radius: 24px !important; padding: 22px !important; background: radial-gradient(circle at 20% 0%, #2A1530, #0D1118 60%) !important; border: 1px solid #1A2130 !important; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; box-shadow: none !important; }
+body.hm #cx-np { display: flex !important; flex-direction: column; align-items: center; gap: 14px; background: none !important; border: 0 !important; padding: 0 !important; }
+body.hm #mx-player #cx-np .cx-vinyl { width: 128px !important; height: 128px !important; flex-shrink: 0; }
+body.hm #cx-np b { font: 600 19px 'Space Grotesk', Inter, sans-serif !important; color: #E8ECF4; }
+body.hm #cx-np small { font-size: 13px; color: #8892A6; }
+body.hm .mx-ctl { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; }
+body.hm .mx-ctl .mx-btn { height: 44px; min-width: 44px; padding: 0 14px; border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; font: 600 13px Inter, sans-serif !important; box-shadow: none !important; }
+body.hm .mx-ctl .radio-stop-btn-el { width: 56px; height: 56px; padding: 0; background: #F4F7FF !important; color: #0A0C11 !important; border: 0 !important; font-size: 16px !important; }
+body.hm .mx-out .mx-chip { border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; font-size: 12px !important; }
+body.hm .mx-status { font-size: 12px; color: #8892A6; }
+body.hm #spk-warn { background: #0D1118 !important; border: 1px solid #3A1E26 !important; border-radius: 14px !important; padding: 8px 10px 8px 14px !important; width: 100%; box-sizing: border-box; text-align: left; }
+body.hm #spk-warn-text { color: #FF9EA8; font-size: 13px; }
+body.hm #spk-reconnect-btn { background: transparent !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; border-radius: 999px !important; }
+body.hm .mx-seg { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; background: none !important; border: 0 !important; padding: 0 !important; }
+body.hm .mx-seg button { height: 88px; border-radius: 18px !important; border: 1px solid #171C26 !important; background: #0D1118 !important; color: #E8ECF4 !important; display: flex !important; flex-direction: column; align-items: flex-start; justify-content: space-between; padding: 14px !important; font: 600 14px Inter, sans-serif !important; box-shadow: none !important; }
+body.hm .mx-seg button[data-mx="radio"] { --c: #7FE6FF; } body.hm .mx-seg button[data-mx="dj"] { --c: #FF9EC4; } body.hm .mx-seg button[data-mx="sound"] { --c: #FFD24C; }
+body.hm .mx-seg-i { color: var(--c); display: grid; }
+body.hm .mx-seg button.on { border-color: var(--c) !important; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 14%, #0D1118), #0D1118 70%) !important; }
+body.hm .mx-pane { border-radius: 24px; background: #090C12; border: 1px solid #151A24; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.mxg-title { font: 600 22px 'Space Grotesk', Inter, sans-serif; color: #E8ECF4; }
+body.hm .mx-search { display: flex; gap: 8px; }
+body.hm .mx-search input { flex: 1; height: 44px; border-radius: 14px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; padding: 0 14px !important; }
+body.hm .mx-search button { height: 44px; padding: 0 18px; border-radius: 14px !important; background: #E8ECF4 !important; color: #0A0C11 !important; border: 0 !important; font-weight: 600; }
+body.hm #mx-filters { display: inline-flex !important; align-self: flex-start; gap: 4px; padding: 4px; border-radius: 999px; background: #0D1118; border: 1px solid #171C26; }
+body.hm #mx-filters button { height: 30px; padding: 0 14px; border-radius: 999px !important; border: 0 !important; background: transparent !important; color: #8892A6 !important; font: 500 13px Inter, sans-serif !important; box-shadow: none !important; }
+body.hm #mx-filters button.on { background: #E8ECF4 !important; color: #0A0C11 !important; font-weight: 600 !important; }
+#mxg { display: flex; flex-direction: column; gap: 20px; }
+.mxg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.mxg-head i { width: 8px; height: 8px; border-radius: 50%; }
+.mxg-head b { font: 600 14px Inter, sans-serif; color: #E8ECF4; }
+.mxg-head small { font-size: 12px; color: #6B7487; }
+.mxg-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 14px; }
+.mxg-card { display: flex; flex-direction: column; gap: 4px; min-width: 0; cursor: pointer; outline: none; }
+.mxg-art { position: relative; aspect-ratio: 1; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 24px #0006; transition: transform .15s; }
+.mxg-card:hover .mxg-art, .mxg-card:focus-visible .mxg-art { transform: translateY(-2px); }
+.mxg-card.on .mxg-art { outline: 2px solid #7FE6FF; outline-offset: 2px; }
+.mxg-ini { position: absolute; left: 12px; top: 8px; font: 700 34px 'Space Grotesk', Inter, sans-serif; color: rgba(255,255,255,0.28); text-transform: uppercase; }
+.mxg-play { position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; border-radius: 50%; background: #F4F7FF; color: #0A0C11; display: grid; place-items: center; }
+.mxg-fav { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(5,7,12,0.45); color: #fff; font-size: 13px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.mxg-card:hover .mxg-fav, .mxg-fav.on { opacity: 1; } .mxg-fav.on { color: #FFD24C; }
+.mxg-card b { font: 600 13px Inter, sans-serif; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+.mxg-card small { font-size: 11px; color: #8892A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mxg-empty { color: #8892A6; font-size: 13px; padding: 24px 0; text-align: center; }
+@media (min-width: 1024px) {
+  body.hm #panel-radio.mx-root { display: grid !important; grid-template-columns: 340px minmax(0, 1fr); grid-auto-rows: min-content; align-items: start; }
+  body.hm #panel-radio > #mx-player { grid-column: 1; grid-row: 1; }
+  body.hm #panel-radio > .mx-seg { grid-column: 1; grid-row: 2; }
+  body.hm #panel-radio > .mx-pane { grid-column: 2; grid-row: 1 / span 6; }
+}
+@media (max-width: 768px) {
+  body.hm .mxg-cards { display: flex; overflow-x: auto; scrollbar-width: none; margin-right: -20px; padding-right: 20px; }
+  body.hm .mxg-card { flex: 0 0 104px; }
+  body.hm #mx-player { padding: 14px !important; gap: 10px; align-items: stretch; }
+  body.hm #mx-player #cx-np { flex-direction: row; text-align: left; gap: 14px; }
+  body.hm #mx-player #cx-np .cx-vinyl { width: 64px !important; height: 64px !important; }
+  body.hm .mx-ctl { justify-content: flex-start; }
+  body.hm .mx-ctl .radio-stop-btn-el { width: 44px; height: 44px; }
+  body.hm .mx-ctl .mx-btn { height: 38px; flex: 0 0 auto; width: auto; }
+  body.hm .mx-status { display: none; }
+  body.hm #mx-player > .mx-ctl, body.hm #mx-player > .mx-out { display: inline-flex; }
+  body.hm .mx-seg button { height: 72px; }
+  body.hm .mx-pane { padding: 14px; }
+}
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -3577,6 +3645,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.13"></script>
+<script src="app.js?v=0.7.14"></script>
 </body>
 </html>
