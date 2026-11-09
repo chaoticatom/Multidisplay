@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.18';
+const APP_VERSION = '0.7.19';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -168,6 +168,9 @@ function setConnStatus(status) {
   if (!el) return;
   el.dataset.status = status;
   el.textContent = status === 'reconnecting' ? offlineText() : { connected: 'Connected', connecting: 'Connecting…', simulator: 'Simulator' }[status] || status;
+  // The home layout shows the same text as a banner while the Pi can't be reached.
+  const ban = document.getElementById('hm-offline');
+  if (ban) { ban.hidden = status === 'connected' || status === 'simulator'; ban.querySelector('span').textContent = el.textContent; }
 }
 // While the Pi can't be reached: how long since we last heard from it.
 function offlineText() {
@@ -178,7 +181,7 @@ function offlineText() {
 }
 setInterval(() => {
   const el = document.getElementById('conn-status');
-  if (el && el.dataset.status === 'reconnecting' && /^Pi offline|^Reconnecting/.test(el.textContent)) el.textContent = offlineText();
+  if (el && el.dataset.status === 'reconnecting' && /^Pi offline|^Reconnecting/.test(el.textContent)) { el.textContent = offlineText(); const b = document.querySelector('#hm-offline span'); if (b) b.textContent = el.textContent; }
 }, 1000);
 
 let _lastStateJson = '';

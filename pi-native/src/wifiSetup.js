@@ -128,37 +128,50 @@ const PAGE_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Multidisplay WiFi Setup</title>
 <style>
-body{font-family:sans-serif;max-width:400px;margin:40px auto;padding:0 16px;background:#111;color:#eee}
-h1{font-size:20px}
-label{display:block;margin-top:16px;font-size:14px;color:#aaa}
-input{width:100%;box-sizing:border-box;padding:10px;margin-top:4px;font-size:16px;background:#222;color:#eee;border:1px solid #444;border-radius:4px}
-button{width:100%;margin-top:24px;padding:12px;font-size:16px;background:#3af;color:#fff;border:none;border-radius:4px}
-#status{margin-top:16px;font-size:14px}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(circle at 50% 0%,#122033,#06080C 60%);color:#E8ECF4;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+.card{width:100%;max-width:400px;padding:28px 22px;border-radius:24px;background:#0D1118;border:1px solid #1A2130;box-shadow:0 30px 80px #000a}
+.logo{width:56px;height:56px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;color:#7FE6FF;background:rgba(127,230,255,.12)}
+h1{margin:0;text-align:center;font-size:20px;font-weight:600}
+.sub{margin:6px 0 22px;text-align:center;font-size:13px;color:#8892A6}
+label{display:block;margin-top:14px;font-size:12px;color:#8892A6}
+input{width:100%;height:46px;margin-top:6px;padding:0 14px;font-size:16px;background:#0A0D13;color:#E8ECF4;border:1px solid #232A38;border-radius:14px;outline:none}
+input:focus{border-color:#7FE6FF}
+button{width:100%;height:48px;margin-top:22px;font-size:15px;font-weight:600;background:#E8ECF4;color:#0A0C11;border:0;border-radius:999px;cursor:pointer}
+button:disabled{opacity:.6}
+#status{margin-top:16px;min-height:20px;text-align:center;font-size:13px;color:#8892A6}
+#status.ok{color:#5EE08A}#status.bad{color:#FF7A7A}
 </style></head><body>
+<div class="card">
+<div class="logo"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/></svg></div>
 <h1>Connect Multidisplay to WiFi</h1>
+<p class="sub">Your home network</p>
 <form id="f">
-<label>Network name (SSID)<input name="ssid" required autocomplete="off"></label>
-<label>Password<input name="password" type="password" autocomplete="off"></label>
+<label>Network<input name="ssid" required autocomplete="off" autocapitalize="none" placeholder="Network name"></label>
+<label>Password<input name="password" type="password" autocomplete="off" placeholder="Password"></label>
 <button type="submit">Connect</button>
 </form>
-<div id="status"></div>
+<div id="status" role="status"></div>
+</div>
 <script>
 document.getElementById('f').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const status = document.getElementById('status');
-  status.textContent = 'Connecting...';
+  const status = document.getElementById('status'), btn = e.target.querySelector('button');
+  status.className = ''; status.textContent = 'Connecting...'; btn.disabled = true;
   const fd = new FormData(e.target);
   try {
     const resp = await fetch('/connect', {method:'POST', body: JSON.stringify({
       ssid: fd.get('ssid'), password: fd.get('password')
     }), headers: {'Content-Type':'application/json'}});
     const data = await resp.json();
+    status.className = data.ok ? 'ok' : 'bad';
     status.textContent = data.ok
       ? 'Connected! This page will stop working as the Pi switches networks.'
       : 'Failed: ' + (data.error || 'unknown error');
   } catch (err) {
-    status.textContent = 'Request failed: ' + err.message;
+    status.className = 'bad'; status.textContent = 'Request failed: ' + err.message;
   }
+  btn.disabled = false;
 });
 </script></body></html>`;
 

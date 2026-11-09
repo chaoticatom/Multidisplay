@@ -2083,6 +2083,30 @@ body.hm .dc-info { width: 22px !important; height: 22px !important; min-width: 0
 /* Toasts. */
 body.hm .cx-toast, body.hm #cx-toast { border-radius: 999px !important; background: rgba(13,17,24,0.96) !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; font: 500 14px Inter, sans-serif !important; box-shadow: 0 12px 30px #0009 !important; }
 
+/* Lost the Pi: a banner under the search bar. */
+#hm-offline { display: none; }
+body.hm #hm-offline:not([hidden]) { display: flex; position: fixed; left: 50%; top: 84px; transform: translateX(-50%); z-index: 60; align-items: center; gap: 10px; height: 38px; padding: 0 16px; border-radius: 999px; background: rgba(42,26,10,0.95); border: 1px solid #FFB86B66; color: #FFD9A8; font: 500 13px Inter, sans-serif; box-shadow: 0 10px 30px #0009; white-space: nowrap; }
+body.hm #hm-offline i { width: 8px; height: 8px; border-radius: 50%; background: #FFB86B; animation: hm-pulse 1.2s ease-in-out infinite; }
+@keyframes hm-pulse { 50% { opacity: .3; } }
+@media (max-width: 768px) { body.hm #hm-offline:not([hidden]) { top: calc(70px + env(safe-area-inset-top, 0px)); max-width: calc(100vw - 28px); } }
+/* No WebGL: a calm card in the tile. */
+#webgl-fallback { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 300px; flex-direction: column; align-items: center; gap: 8px; text-align: center; color: #E8ECF4; }
+#webgl-fallback[style*="block"], #webgl-fallback[style*="flex"] { display: flex !important; }
+.wf-ico { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; color: #7FE6FF; background: rgba(127,230,255,0.12); margin-bottom: 6px; }
+#webgl-fallback b { font: 600 17px 'Space Grotesk', Inter, sans-serif; }
+#webgl-fallback small { font-size: 13px; color: #8892A6; line-height: 1.5; }
+/* Guest view: only what a guest can use, tidy. */
+body.hm.guest .hm-xrow, body.hm.guest .hm-quick, body.hm.guest .hm-mquick, body.hm.guest #hm-col .hm-sliders .hm-sl:nth-child(n+2), body.hm.guest [data-hd="setup"], body.hm.guest #wall-toolbar, body.hm.guest [data-hd="day"], body.hm.guest [data-hd="power"], body.hm.guest .hm-sep { display: none !important; }
+body.hm.guest #hm-dock::after { content: 'Guest'; font: 600 11px Inter, sans-serif; color: #8892A6; padding: 0 12px; }
+/* Wall layout editor cells. */
+body.hm .wall-cell { border-radius: 14px !important; }
+body.hm .wall-cell.empty { border: 1.5px dashed #2A3242 !important; background: rgba(13,17,24,0.6) !important; }
+body.hm .wall-cell.empty::after { color: #4A5366 !important; font-weight: 300; }
+body.hm .wall-cell.empty:hover { border-color: #7FE6FF !important; background: rgba(127,230,255,0.08) !important; }
+body.hm .wall-cell.empty:hover::after { color: #7FE6FF !important; }
+body.hm .wall-cell.drop-target { border-color: #7FE6FF !important; background: rgba(127,230,255,0.18) !important; }
+body.hm .wall-remove { width: 26px !important; height: 26px !important; border-radius: 50% !important; background: rgba(5,7,12,0.8) !important; border: 1px solid #FF7A7A !important; color: #FF7A7A !important; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -3841,6 +3865,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
 <nav id="studio-tabs" aria-label="Main"></nav>
 <!-- Home layout (A + B quiet): see public/src/98-home.js. -->
 <div id="hm-spot"><span class="hm-spot-i"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span><label for="hm-ask" class="studio-sr">Search or ask</label><input id="hm-ask" type="text" placeholder="Search or ask: “rain”, “bedtime”, “volume 50”" autocomplete="off"><kbd>Ctrl K</kbd></div>
+<div id="hm-offline" role="status" hidden><i></i><span>Connecting…</span></div>
 <div id="hm-stage" aria-hidden="true"></div>
 <section id="hm-over" aria-label="Live cube">
   <span id="hm-name">&nbsp;</span>
@@ -3857,11 +3882,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
 <nav id="hm-dock" aria-label="Dock"><div id="hm-favs"></div><span class="hm-sep"></span><button type="button" class="hm-d" data-hd="effects" aria-label="All effects" title="All effects"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button><button type="button" class="hm-d" data-hd="music" aria-label="Music" title="Music"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="hm-d" data-hd="day" aria-label="Day" title="Day"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button><button type="button" class="hm-d" data-hd="setup" aria-label="Setup" title="Setup"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></button><button type="button" class="hm-d hm-pwr" data-hd="power" aria-label="Display on or off" title="Display on or off"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/></svg></button></nav>
 <div id="canvas-wrap">
   <canvas id="c"></canvas><canvas id="panel2d-canvas"></canvas><div id="wall-preview"></div>
-  <div id="webgl-fallback" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:340px;text-align:center;color:#9ab;font-size:14px;line-height:1.6;padding:20px;">
-    <div style="font-size:32px;margin-bottom:10px;">⚠</div>
-    3D cube preview isn't available on this browser/device (no WebGL).<br>
-    Switch to <b>Panel 2D</b> in Cube Size to see the live preview.
-  </div>
+  <div id="webgl-fallback" style="display:none"><span class="wf-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 21 7v10l-9 5-9-5V7z"/><path d="M12 12 21 7M12 12 3 7M12 12v10"/></svg></span><b>No 3D on this device</b><small>The display still works. Setup → Display → Flat shows a 2D preview.</small></div>
   <div id="wall-hint" role="note">Click <b>+</b> to add a display · drag a display to move it · <b>×</b> removes one · press <b>Esc</b> or <b>Layout ✕</b> when done</div>
   <div id="wall-toolbar">
     <button id="wall-layout-btn" title="Edit wall layout">Layout <span class="wall-layout-icon">+</span></button>
