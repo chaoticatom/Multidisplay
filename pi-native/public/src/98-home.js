@@ -80,6 +80,7 @@ function wireHome() {
     else hmOpen('music');
   });
   wireMusicNext();
+  wireDayNext();
   // Start on the cube, the menus tucked away.
   if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
   document.body.classList.toggle('hm-sheet', menuOpen);
@@ -269,4 +270,18 @@ function wireMusicNext() {
   }
   document.querySelectorAll('#mx-filters [data-mxf], .mx-search .radio-search-btn-el').forEach((b) => b.addEventListener('click', () => setTimeout(mxgSync, 0)));
   document.querySelector('.mx-search .radio-search-input-el')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') setTimeout(mxgSync, 0); });
+}
+
+// ── Day page (next gen): each timer kind gets an icon and a colour; the
+// quick-add buttons become icon tiles.
+const TM_ICON = {
+  wake: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2"/>',
+  start: '<path d="M7 4l13 8-13 8z"/>',
+  winddown: '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
+  off: '<path d="M12 3v9"/><path d="M6.4 7.6a8 8 0 1 0 11.2 0"/>',
+};
+function wireDayNext() {
+  const LABEL = { wake: 'Wake up', start: 'Switch on', winddown: 'Wind down', off: 'Turn off' };
+  document.querySelectorAll('.tm-quick [data-quick]').forEach((b) => { const k = b.dataset.quick; if (TM_ICON[k]) { b.dataset.kind = k; b.innerHTML = `<span class="tm-ico">${svgIcon(TM_ICON[k], 16)}</span><span>${LABEL[k]}</span><span class="tm-plus">+</span>`; } });
+  const add = document.getElementById('alarm-add-btn'); if (add) add.innerHTML = svgIcon('<path d="M12 5v14M5 12h14"/>', 14) + '<span>New timer</span>';
 }

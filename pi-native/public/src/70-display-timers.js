@@ -145,11 +145,13 @@ function renderAlarmList() {
     const next = al.enabled ? tmUntil(tmNextRun(al)) : 'off';
     const div = document.createElement('div');
     div.className = 'cx-timer' + (al.enabled ? ' on' : '');
+    div.dataset.kind = kind;
     div.innerHTML = `<div class="cx-timer-main"><b></b><span></span><small></small><em class="tm-last"></em><i class="tm-dots" aria-hidden="true"></i></div><button type="button" class="tm-test" aria-label="Test this timer now" title="Run it now, shortened to about 20 seconds"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg></button><button type="button" class="cx-switch${al.enabled ? ' on' : ''}" aria-label="Timer on or off"></button>`;
     // Which days it runs: seven dots, Monday first, lit on its days.
     const on = al.repeat === 'daily' || al.repeat === 'hourly' ? [0, 1, 2, 3, 4, 5, 6] : al.repeat === 'weekdays' ? [1, 2, 3, 4, 5] : al.repeat === 'weekends' ? [0, 6] : al.repeat === 'once' ? [] : (al.days || []);
     div.querySelector('.tm-dots').replaceChildren(...[1, 2, 3, 4, 5, 6, 0].map((d) => { const s = document.createElement('span'); s.textContent = 'MTWTFSS'[(d + 6) % 7]; if (on.includes(d)) s.className = 'on'; return s; }));
     div.querySelector('b').textContent = tmHHMM(al);
+    if (typeof TM_ICON === 'object') { const ic = document.createElement('span'); ic.className = 'tm-ico'; ic.innerHTML = svgIcon(TM_ICON[kind] || TM_ICON.start, 22); div.prepend(ic); }
     div.querySelector('span').textContent = (al.name || TM_KIND_LABEL[kind]) + (what ? ' · ' + what : '');
     const radioTxt = al.radio?.action === 'start' ? ' · 📻 ' + (al.radio.station?.name || 'radio') : al.radio?.action === 'stop' ? ' · 📻 off' : '';
     div.querySelector('small').textContent = tmRepeatLabel(al) + (next ? ' · ' + next : '') + radioTxt;
