@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.16';
+const APP_VERSION = '0.7.17';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -204,7 +204,7 @@ function pinPad(title) {
     const wrap = document.createElement('div');
     wrap.className = 'tm-modal'; wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
     wrap.innerHTML = '<div class="tm-sheet" style="max-width:340px;margin:auto;text-align:center">'
-      + '<div style="font-size:30px">🔒</div><b class="pp-title" style="display:block;margin:4px 0 12px"></b>'
+      + '<div class="pp-lock"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><b class="pp-title" style="display:block;margin:4px 0 12px"></b>'
       + '<input class="pp-in" type="password" inputmode="numeric" autocomplete="current-password" aria-label="PIN" style="width:100%;box-sizing:border-box;text-align:center;font-size:26px;letter-spacing:8px;padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:inherit">'
       + '<div class="pp-keys" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0"></div>'
       + '<label class="check-row" style="justify-content:center"><input type="checkbox" class="pp-rem" checked> Remember on this device</label>'
@@ -7203,7 +7203,7 @@ function wireHome() {
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { const t = ask.value.trim(); ask.value = ''; hmAsk(t); ask.blur(); } });
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && ask.offsetParent) { e.preventDefault(); ask.focus(); }
-    if (e.key === 'Escape' && menuOpen && window.innerWidth >= 1024 && !document.querySelector('.tm-modal:not([hidden])')) toggleMenu();
+    if (e.key === 'Escape' && menuOpen && window.innerWidth > 768 && !document.querySelector('.tm-modal:not([hidden])')) toggleMenu();
   });
   const cmd = { 'hm-bright': (v) => send({ cmd: 'setBrightness', value: v }), 'hm-vol': (v) => send({ cmd: 'setMasterVolume', value: v }), 'hm-speed': (v) => send({ cmd: 'setSpeed', value: v }) };
   Object.keys(cmd).forEach((id) => {
@@ -7240,8 +7240,9 @@ function wireHome() {
   wireDayNext();
   wireTabsNext();
   wireSetupCards();
+  hmRelabel();
   // Start on the cube, the menus tucked away.
-  if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
+  if (menuOpen) toggleMenu();
   document.body.classList.toggle('hm-sheet', menuOpen);
   window.addEventListener('resize', () => syncHome());
   setTimeout(resizeRenderer, 50);
@@ -7548,5 +7549,39 @@ function wireSetupCards() {
     if (!/^(Display|AI assistant|Alexa|System)$/.test(name)) return;
     if (name === 'Display') body.querySelectorAll('.dgroup').forEach((g) => cardify(g, (g.dataset.dgroup || 'Display').replace(/^./, (c) => c.toUpperCase())));
     else cardify(body, name);
+  });
+}
+
+// ── Short labels: long settings text cut to a word or two (the full
+// wording stays as a hover title). Only the text is changed, so every
+// control keeps its handler and its checkbox.
+const HM_RELABEL = [
+  ['#setup-layout-btn', 'Edit layout'],
+  ['#identify-panels-btn', 'Panel numbers'],
+  ['#pwa-install-btn', 'Install app'],
+  ['label:has(#acc-local)', 'No PIN at home'],
+  ['label:has(#acc-guests)', 'Guest view from outside'],
+  ['label:has(#alexa-chk)', 'Use with Alexa'],
+  ['label:has(.au-sync-auto-el)', 'Auto sync'],
+  ['label:has(#draw-slideshow)', 'Slideshow when idle'],
+  ['.size-btn[data-size="8"]', 'Cube 8'],
+];
+function hmRelabel() {
+  for (const [sel, text] of HM_RELABEL) {
+    document.querySelectorAll(sel).forEach((el) => {
+      if (el.dataset.relabelled) return;
+      const tn = [...el.childNodes].reverse().find((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!tn) return;
+      el.title = el.title || el.textContent.trim();
+      tn.textContent = ' ' + text;
+      el.dataset.relabelled = '1';
+    });
+  }
+  // Long how-to notes fold away behind a small "How" link.
+  document.querySelectorAll('#alexa-help, #pwa-help, #ai-help').forEach((n) => {
+    if (n.closest('details.hm-how') || !n.parentNode) return;
+    const d = document.createElement('details'); d.className = 'hm-how';
+    const s = document.createElement('summary'); s.textContent = 'How it works';
+    n.before(d); d.append(s, n);
   });
 }

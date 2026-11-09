@@ -47,7 +47,7 @@ function wireHome() {
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { const t = ask.value.trim(); ask.value = ''; hmAsk(t); ask.blur(); } });
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && ask.offsetParent) { e.preventDefault(); ask.focus(); }
-    if (e.key === 'Escape' && menuOpen && window.innerWidth >= 1024 && !document.querySelector('.tm-modal:not([hidden])')) toggleMenu();
+    if (e.key === 'Escape' && menuOpen && window.innerWidth > 768 && !document.querySelector('.tm-modal:not([hidden])')) toggleMenu();
   });
   const cmd = { 'hm-bright': (v) => send({ cmd: 'setBrightness', value: v }), 'hm-vol': (v) => send({ cmd: 'setMasterVolume', value: v }), 'hm-speed': (v) => send({ cmd: 'setSpeed', value: v }) };
   Object.keys(cmd).forEach((id) => {
@@ -84,8 +84,9 @@ function wireHome() {
   wireDayNext();
   wireTabsNext();
   wireSetupCards();
+  hmRelabel();
   // Start on the cube, the menus tucked away.
-  if (menuOpen && (window.innerWidth >= 1024 || window.innerWidth <= 768)) toggleMenu();
+  if (menuOpen) toggleMenu();
   document.body.classList.toggle('hm-sheet', menuOpen);
   window.addEventListener('resize', () => syncHome());
   setTimeout(resizeRenderer, 50);
@@ -392,5 +393,39 @@ function wireSetupCards() {
     if (!/^(Display|AI assistant|Alexa|System)$/.test(name)) return;
     if (name === 'Display') body.querySelectorAll('.dgroup').forEach((g) => cardify(g, (g.dataset.dgroup || 'Display').replace(/^./, (c) => c.toUpperCase())));
     else cardify(body, name);
+  });
+}
+
+// ── Short labels: long settings text cut to a word or two (the full
+// wording stays as a hover title). Only the text is changed, so every
+// control keeps its handler and its checkbox.
+const HM_RELABEL = [
+  ['#setup-layout-btn', 'Edit layout'],
+  ['#identify-panels-btn', 'Panel numbers'],
+  ['#pwa-install-btn', 'Install app'],
+  ['label:has(#acc-local)', 'No PIN at home'],
+  ['label:has(#acc-guests)', 'Guest view from outside'],
+  ['label:has(#alexa-chk)', 'Use with Alexa'],
+  ['label:has(.au-sync-auto-el)', 'Auto sync'],
+  ['label:has(#draw-slideshow)', 'Slideshow when idle'],
+  ['.size-btn[data-size="8"]', 'Cube 8'],
+];
+function hmRelabel() {
+  for (const [sel, text] of HM_RELABEL) {
+    document.querySelectorAll(sel).forEach((el) => {
+      if (el.dataset.relabelled) return;
+      const tn = [...el.childNodes].reverse().find((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!tn) return;
+      el.title = el.title || el.textContent.trim();
+      tn.textContent = ' ' + text;
+      el.dataset.relabelled = '1';
+    });
+  }
+  // Long how-to notes fold away behind a small "How" link.
+  document.querySelectorAll('#alexa-help, #pwa-help, #ai-help').forEach((n) => {
+    if (n.closest('details.hm-how') || !n.parentNode) return;
+    const d = document.createElement('details'); d.className = 'hm-how';
+    const s = document.createElement('summary'); s.textContent = 'How it works';
+    n.before(d); d.append(s, n);
   });
 }

@@ -1674,7 +1674,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .hm-tbtns { position: absolute; display: flex; gap: 8px; }
 .hm-mquick { display: none; }
 
-@media (min-width: 1024px) {
+@media (min-width: 769px) {
   body.hm { --hm-col: 300px; --hm-sheet: 440px; --hm-top: 96px; --hm-bot: 118px; }
   body.hm #studio-rail, body.hm #studio-head, body.hm #studio-map, body.hm #studio-transport, body.hm #studio-dock, body.hm #sidebar-open-btn, body.hm #sidebar-brightness-bar, body.hm #hint { display: none !important; }
   body.hm #hm-spot { display: flex; position: fixed; left: 50%; top: 22px; transform: translateX(-50%); width: min(560px, 50vw); height: 52px; z-index: 30; align-items: center; gap: 12px; padding: 0 16px; border-radius: 16px; background: #11161F; border: 1px solid #232A38; box-sizing: border-box; color: #7FE6FF; }
@@ -1732,7 +1732,7 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
 .hm-x span { color: var(--c); display: grid; }
 .hm-x:hover { border-color: #3A4458; }
 .hm-x.on { border-color: var(--c); color: var(--c); background: color-mix(in srgb, var(--c) 16%, #0D1118); }
-@media (min-width: 1024px) { .hm-x[data-hx="off"] { display: none; } }
+@media (min-width: 769px) { .hm-x[data-hx="off"] { display: none; } }
 @media (max-width: 768px) { .hm-x { height: 42px; } }
 .hm-pwr { color: #FF7A7A !important; } .hm-pwr.off { color: #5EE08A !important; }
 
@@ -1800,7 +1800,7 @@ body.hm #mx-filters button.on { background: #E8ECF4 !important; color: #0A0C11 !
 .mxg-card b { font: 600 13px Inter, sans-serif; color: #E8ECF4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .mxg-card small { font-size: 11px; color: #8892A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mxg-empty { color: #8892A6; font-size: 13px; padding: 24px 0; text-align: center; }
-@media (min-width: 1024px) {
+@media (min-width: 769px) {
   body.hm #panel-radio.mx-root { display: grid !important; grid-template-columns: 340px minmax(0, 1fr); grid-auto-rows: min-content; align-items: start; }
   body.hm #panel-radio > #mx-player { grid-column: 1; grid-row: 1; }
   body.hm #panel-radio > .mx-seg { grid-column: 1; grid-row: 2; }
@@ -1846,7 +1846,7 @@ body.hm .tm-plus { margin-left: auto; color: #4A5366; font-size: 16px; }
 body.hm #alarm-add-btn { width: auto !important; align-self: flex-start; height: 40px; padding: 0 18px !important; border-radius: 999px !important; border: 0 !important; background: #E8ECF4 !important; color: #0A0C11 !important; font: 600 13px Inter, sans-serif !important; display: inline-flex; align-items: center; gap: 6px; }
 body.hm #cx-ring-wrap { width: 220px; height: 220px; }
 body.hm #cx-ring-time { font: 600 38px 'Space Grotesk', Inter, sans-serif !important; }
-@media (min-width: 1024px) {
+@media (min-width: 769px) {
   body.hm #sidebar #alarm-section > .section-body { display: grid !important; grid-template-columns: 340px minmax(0, 620px); grid-template-areas: "ring list" "clock list" "quick list" ". add"; column-gap: 20px; row-gap: 12px; align-items: start; grid-auto-rows: min-content; }
   body.hm #cx-ring-wrap { grid-area: ring; margin: 0 !important; justify-self: stretch; width: auto; height: 260px; border-radius: 24px; background: radial-gradient(circle at 50% 0%, #1A1E45, #0D1118 65%); border: 1px solid #1A2130; }
   body.hm #cx-ring-wrap svg { position: absolute; left: 50%; top: 20px; width: 220px; height: 220px; transform: translateX(-50%); }
@@ -1898,7 +1898,7 @@ body.hm .nx-ov button.on { border-color: #7FE6FF !important; color: #7FE6FF !imp
 body.hm .nx-ov button::after { content: attr(aria-label); font: 500 13px Inter, sans-serif; margin-left: 6px; }
 body.hm .nx-recent { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 body.hm #now-options { padding: 16px; border-radius: 20px; background: #0D1118; border: 1px solid #171C26; }
-@media (min-width: 1024px) {
+@media (min-width: 769px) {
   body.hm #sidebar #nx { display: grid !important; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
 }
 /* Scenes: big picture cards. */
@@ -2012,6 +2012,51 @@ body.hm .ui-label-accent { font-size: 12px !important; letter-spacing: 0 !import
 
 body.hm #sidebar .subtab-bar[hidden] { display: none !important; }
 body.hm .sc-head b, body.hm .sc-head.mx-h, body.hm .sc-head.mx-h b { text-transform: none !important; letter-spacing: 0 !important; }
+
+/* Header row: just the close button, floating; the connection badge a dot. */
+body.hm #sidebar-header { position: absolute !important; top: 10px; right: 12px; z-index: 5; padding: 0 !important; border: 0 !important; background: none !important; }
+body.hm #sidebar-header > div:first-child { display: flex; align-items: center; }
+body.hm #conn-status { font-size: 0 !important; width: 10px; height: 10px; padding: 0 !important; border-radius: 50%; margin-right: 10px; display: inline-block; }
+body.hm #sidebar .subtab-bar { margin-right: 80px !important; }
+body.hm #sidebar-scroll { padding-top: 6px !important; }
+/* Display: display-type tiles, layout buttons as pills. */
+body.hm .size-btn { border-radius: 16px !important; min-height: 72px; background: #0A0D13 !important; border: 1px solid #171C26 !important; color: #B9C2D3 !important; font: 600 13px Inter, sans-serif !important; }
+body.hm .size-btn.active, body.hm .size-btn.on { border-color: #7FE6FF !important; color: #7FE6FF !important; background: rgba(127,230,255,0.1) !important; }
+body.hm #setup-layout-btn, body.hm #identify-panels-btn, body.hm #pwa-install-btn { width: auto !important; height: 36px; padding: 0 16px !important; border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #E8ECF4 !important; font: 600 13px Inter, sans-serif !important; margin: 0 !important; }
+/* Fold-away help. */
+body.hm details.hm-how { font-size: 12.5px; color: #8892A6; }
+body.hm details.hm-how > summary { cursor: pointer; color: #7FE6FF; list-style: none; font-weight: 600; }
+body.hm details.hm-how > summary::-webkit-details-marker { display: none; }
+body.hm details.hm-how > summary::before { content: 'ⓘ '; }
+body.hm details.hm-how > :not(summary) { display: block !important; margin-top: 8px; }
+/* Switch rows: label left, switch right. */
+body.hm .sc-card .check-row, body.hm .mx-card .check-row { display: flex !important; flex-direction: row-reverse; justify-content: space-between; align-items: center; gap: 12px; }
+/* Overlay and effect settings: thin sliders, chip rows, small labels. */
+body.hm .slider-row { display: flex; align-items: center; gap: 12px; margin: 6px 0 !important; }
+body.hm .slider-label { font-size: 13px !important; color: #E8ECF4 !important; min-width: 90px; }
+body.hm .slider-val { font: 600 13px 'Space Grotesk', Inter, sans-serif !important; color: #B9C2D3 !important; min-width: 44px; text-align: right; }
+body.hm .ov-col, body.hm .opt-grid button { border-radius: 999px !important; background: #0D1118 !important; border: 1px solid #232A38 !important; color: #B9C2D3 !important; font: 500 13px Inter, sans-serif !important; min-height: 34px; box-shadow: none !important; }
+body.hm .ov-col.active, body.hm .opt-grid button.active, body.hm .opt-grid button.on { background: #E8ECF4 !important; color: #0A0C11 !important; border-color: #E8ECF4 !important; font-weight: 600 !important; }
+body.hm .effect-panel .ui-label-accent, body.hm .ov-row-label { margin: 12px 0 6px !important; }
+/* Scenes extras as cards. */
+body.hm .party-box { display: flex; align-items: center; gap: 10px; }
+body.hm #playlist-row select { height: 36px; border-radius: 999px !important; width: auto !important; }
+/* Wall layout toolbar as pills. */
+body.hm #wall-toolbar { background: rgba(13,17,24,0.92) !important; border: 1px solid #232A38 !important; border-radius: 999px !important; padding: 6px !important; }
+body.hm #wall-toolbar button { border-radius: 999px !important; background: transparent !important; border: 0 !important; color: #E8ECF4 !important; font: 600 13px Inter, sans-serif !important; padding: 6px 14px !important; }
+body.hm #wall-layout-save-dropdown { border-radius: 18px !important; background: #090C12 !important; border: 1px solid #1A2130 !important; }
+body.hm #wall-hint { border-radius: 999px !important; background: rgba(13,17,24,0.92) !important; border: 1px solid #232A38 !important; }
+/* PIN keypad. */
+.pp-lock { width: 56px; height: 56px; margin: 0 auto 6px; border-radius: 18px; display: grid; place-items: center; color: #FFD24C; background: rgba(255,210,76,0.12); }
+body.hm .pp-keys button { background: #0D1118 !important; border: 1px solid #171C26 !important; color: #E8ECF4 !important; font: 600 22px 'Space Grotesk', Inter, sans-serif !important; }
+body.hm .pp-in { background: #0D1118 !important; border: 1px solid #171C26 !important; border-radius: 16px !important; color: #E8ECF4 !important; }
+body.hm .pp-ok { border-radius: 999px !important; background: #E8ECF4 !important; color: #0A0C11 !important; }
+/* Tablet: a narrower column. */
+@media (min-width: 769px) and (max-width: 1100px) { body.hm { --hm-col: 250px; --hm-top: 86px; } body.hm #hm-dock .hm-fav { width: 52px; } }
+
+@media (max-width: 768px) { body.hm #sidebar-header { display: none !important; } body.hm #sidebar .subtab-bar { margin-right: 18px !important; } }
+body.hm .nx-pal { display: flex !important; }
+body.hm .nx-pal button { flex: 0 0 46px !important; }
 
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
@@ -3836,6 +3881,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.16"></script>
+<script src="app.js?v=0.7.17"></script>
 </body>
 </html>
