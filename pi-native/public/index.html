@@ -1714,8 +1714,10 @@ body.fx-open #menu-toggle, body.fx-open #sidebar-collapse-btn { visibility: hidd
   body.hm[data-tab="setup"] .sx-actions { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
   body.hm[data-tab="setup"] .sx-actions button { width: 44px; height: 44px; border-radius: 50%; padding: 0; background: #0D1118; border: 1px solid #232A38; }
   body.hm[data-tab="setup"] .sx-actions button span { display: none; }
+  body.hm[data-tab="setup"] .sx-actions { grid-row: 1; grid-column: 2; }
   body.hm[data-tab="setup"] .sx-grid { grid-column: 1 / -1; }
-  body.hm[data-tab="setup"] .sx-grid button { aspect-ratio: auto; height: 150px; }
+  body.hm[data-tab="setup"] .sx-grid button { aspect-ratio: auto; height: 118px; }
+  body.hm #wall-toolbar { position: fixed; left: 44px; right: auto; top: calc(var(--hm-top) + 16px); }
 }
 
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
@@ -1756,6 +1758,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
   .hm-music { padding: 10px 12px; }
   .hm-disc { width: 38px; height: 38px; }
   .hm-play { width: 34px; height: 34px; }
+  body.hm #wall-toolbar { position: fixed; left: 26px; right: auto; top: calc(86px + env(safe-area-inset-top, 0px)); }
   body.hm.hm-sheet #hm-col, body.hm.hm-sheet #hm-over, body.hm.hm-sheet #hm-stage, body.hm.hm-sheet #hm-spot { visibility: hidden; }
 }
 </style>
@@ -3536,6 +3539,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.11"></script>
+<script src="app.js?v=0.7.12"></script>
 </body>
 </html>

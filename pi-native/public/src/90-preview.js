@@ -210,7 +210,7 @@ function sheetTopPx() {
 function homeStageRect() {
   if (!document.body.classList.contains('hm')) return null;
   const el = document.getElementById('hm-stage');
-  if (!el || !el.offsetParent) return null;
+  if (!el || getComputedStyle(el).display === 'none') return null; // fixed: offsetParent is always null
   if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
   const r = el.getBoundingClientRect();
   return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;

@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.11';
+const APP_VERSION = '0.7.12';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -4656,7 +4656,7 @@ function sheetTopPx() {
 function homeStageRect() {
   if (!document.body.classList.contains('hm')) return null;
   const el = document.getElementById('hm-stage');
-  if (!el || !el.offsetParent) return null;
+  if (!el || getComputedStyle(el).display === 'none') return null; // fixed: offsetParent is always null
   if (window.innerWidth <= 768 && typeof menuOpen !== 'undefined' && menuOpen) return null;
   const r = el.getBoundingClientRect();
   return r.width > 40 && r.height > 40 ? { l: r.left, t: r.top, r: r.right, b: r.bottom } : null;
@@ -7194,6 +7194,7 @@ function wireHome() {
   const home = STUDIO_RAIL.find((x) => x.id === 'now');
   if (home) { home.label = 'Home'; home.icon = '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/>'; }
   const ask = document.getElementById('hm-ask');
+  if (window.innerWidth <= 768) ask.placeholder = 'Search or ask';
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { const t = ask.value.trim(); ask.value = ''; hmAsk(t); ask.blur(); } });
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && ask.offsetParent) { e.preventDefault(); ask.focus(); }
@@ -7251,8 +7252,9 @@ function syncHome() {
   const vals = { 'hm-bright': s.brightness, 'hm-vol': s.prefs?.volume, 'hm-speed': s.speed };
   for (const id of Object.keys(vals)) {
     const inp = document.getElementById(id), v = Number(vals[id]);
-    if (!inp || !Number.isFinite(v) || document.activeElement === inp) continue;
-    inp.value = v; hmRange(inp); document.getElementById(id + '-v').textContent = hmVal[id](v);
+    if (!inp || document.activeElement === inp) continue;
+    if (Number.isFinite(v)) inp.value = v;
+    hmRange(inp); document.getElementById(id + '-v').textContent = hmVal[id](Number(inp.value));
   }
   // Every menu slider shows its fill too.
   document.querySelectorAll('#sidebar input[type=range]').forEach(hmRange);
