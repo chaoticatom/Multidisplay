@@ -27145,9 +27145,58 @@ var PiEngine = (() => {
       var { applyFaceOverlays } = require_overlays();
       var { OV_DEFAULTS } = require_overlays();
       var _effects = null;
+      var _wallEffects = null;
       function getEffects() {
         if (!_effects) _effects = require_effects().EFFECTS;
         return _effects;
+      }
+      function getWallEffects() {
+        if (!_wallEffects) _wallEffects = require_effects().WALL_EFFECTS;
+        return _wallEffects;
+      }
+      var RING = [0, 2, 1, 3, 4, 5];
+      var JOINS = ["fit", "copy", "wrap"];
+      var _canvases = /* @__PURE__ */ new Map();
+      function canvasFor(cols, size) {
+        const key = cols + "x" + size;
+        let c = _canvases.get(key);
+        if (!c) {
+          const { CubeCore } = require_core();
+          c = Object.create(CubeCore.prototype);
+          c.SIZE = size;
+          c.sfx = [];
+          c.t = 0;
+          c.initWall(Array.from({ length: cols }, (_, gx) => ({ gx, gy: 0 })), size);
+          _canvases.set(key, c);
+        }
+        return c;
+      }
+      function renderFlat(core, dt, fnKey, cols, opts, savedOptions) {
+        const fn = getWallEffects()[fnKey];
+        if (!fn || fnKey === "custom_cube") return null;
+        const c = canvasFor(cols, core.SIZE);
+        c.audio = core.audio;
+        c.quality = core.quality;
+        c.panelMode = "wall";
+        c.overlaysState = core.overlaysState;
+        c.effectOptions = { ...savedOptions, [fnKey]: opts || {} };
+        c.wallBuf.fill(0);
+        fn(c, dt);
+        return c;
+      }
+      function blitFace(core, f, canvas, col) {
+        const S = core.SIZE, map = core.faceMap[f], buf = core.colBuf, src = canvas.wallBuf, W = canvas.wallW;
+        for (let v = 0; v < S; v += 1) {
+          const y = S - 1 - v;
+          for (let u = 0; u < S; u += 1) {
+            const idx = map[v * S + u];
+            if (idx < 0) continue;
+            const o = (y * W + col * S + u) * 3;
+            buf[idx * 3] = src[o];
+            buf[idx * 3 + 1] = src[o + 1];
+            buf[idx * 3 + 2] = src[o + 2];
+          }
+        }
       }
       function renderFaceEffect(core, dt, faceConfig, savedOptions) {
         const EFFECTS = getEffects();
@@ -27177,12 +27226,30 @@ var PiEngine = (() => {
         if (!faces) return;
         const accumBuf = new Float32Array(N * 3);
         const SIZE = core.SIZE;
+        const join = JOINS.includes(core.customCubeJoin) ? core.customCubeJoin : "fit";
+        const flat = /* @__PURE__ */ new Map();
+        if (join !== "wrap") {
+          const groups = /* @__PURE__ */ new Map();
+          for (const f of RING) {
+            const fc = faces[f];
+            if (!fc || !fc.effect || fc.effect === "none") continue;
+            if (!groups.has(fc.effect)) groups.set(fc.effect, []);
+            groups.get(fc.effect).push(f);
+          }
+          for (const [key, list] of groups) {
+            const cols = join === "copy" ? 1 : list.length;
+            const canvas = renderFlat(core, dt, key, cols, faces[list[0]].opts, savedOptions);
+            if (canvas) list.forEach((f, i) => flat.set(f, { canvas, col: join === "copy" ? 0 : i }));
+          }
+        }
         for (let f = 0; f < 6; f += 1) {
           const faceConfig = faces[f];
           if (!faceConfig || !faceConfig.effect) continue;
           if (faceConfig.effect === "none" && !(faceConfig.overlayKeys && faceConfig.overlayKeys.length)) continue;
           for (let i = 0; i < N * 3; i += 1) colBuf[i] = 0;
-          const rendered = faceConfig.effect === "none" ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
+          const fl = flat.get(f);
+          if (fl) blitFace(core, f, fl.canvas, fl.col);
+          const rendered = faceConfig.effect === "none" || fl ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
           if (!rendered) continue;
           if (faceConfig.overlayKeys && faceConfig.overlayKeys.length) {
             applyFaceOverlays(core, f, faceConfig.overlayKeys, dt, overlayState);
@@ -27199,6 +27266,7 @@ var PiEngine = (() => {
         for (let i = 0; i < N * 3; i += 1) colBuf[i] = accumBuf[i];
       }
       module.exports = effectCustomCube;
+      module.exports.JOINS = JOINS;
     }
   });
 
@@ -33881,6 +33949,7 @@ var PiEngine = (() => {
         core.quality = state.prefs && state.prefs.quality || "auto";
         core.tz = state.prefs && state.prefs.tz;
         core.customCubeFaces = state.customCube && state.customCube.faces;
+        core.customCubeJoin = state.customCube && state.customCube.join || "fit";
         core.overlaysState = state.overlays;
         core.faceFix = config.faceFix || require_panelConfig().cleanFaceFix(null);
         core.identifying = !!state.identifyPanels;
@@ -34064,16 +34133,18 @@ var PiEngine = (() => {
       function emptyFaces() {
         return [null, null, null, null, null, null];
       }
-      var DEFAULT_CONFIG = { faces: emptyFaces(), library: [] };
+      var JOINS = ["fit", "copy", "wrap"];
+      var DEFAULT_CONFIG = { faces: emptyFaces(), library: [], join: "fit" };
       function load() {
         try {
           const raw = readSectionJson("customCube", CONFIG_PATH);
           const parsed = JSON.parse(raw);
           const faces = isValidFaces(parsed.faces) ? parsed.faces : emptyFaces();
           const library = isValidLibrary(parsed.library) ? parsed.library : [];
-          return { faces, library };
+          const join = JOINS.includes(parsed.join) ? parsed.join : "fit";
+          return { faces, library, join };
         } catch (err) {
-          return { faces: emptyFaces(), library: [] };
+          return { faces: emptyFaces(), library: [], join: "fit" };
         }
       }
       function save(config) {
@@ -34088,7 +34159,8 @@ var PiEngine = (() => {
         isValidLibrary,
         NUM_FACES,
         DEFAULT_CONFIG,
-        CONFIG_PATH
+        CONFIG_PATH,
+        JOINS
       };
     }
   });

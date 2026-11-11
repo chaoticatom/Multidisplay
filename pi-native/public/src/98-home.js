@@ -147,6 +147,8 @@ function syncHome() {
     document.querySelector('[data-hm="music"]').classList.toggle('spin', playing);
   }
   hmSyncSetup();
+  const join = currentState.customCube?.join || 'fit';
+  document.querySelectorAll('#pe-join [data-join]').forEach((b) => { const on = b.dataset.join === join; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
   // Colour swatches keep their own colour over the menu's button styles.
   document.querySelectorAll('#nx .nx-pal [data-pal]:not([data-bg])').forEach((b) => { const bg = b.style.background; if (bg) { b.style.setProperty('background', bg, 'important'); b.dataset.bg = '1'; } });
   mxgSync();
@@ -313,6 +315,15 @@ function wireTabsNext() {
     nx.append(L, R); // still inside #nx, which syncNowV2() looks them up in
   }
   // Colour swatches keep their own colour over the menu's button styles.
+  // Faces: how faces that share an effect are joined.
+  const pe = document.getElementById('pe-faces');
+  if (pe && !document.getElementById('pe-join')) {
+    const row = document.createElement('div'); row.id = 'pe-join'; row.className = 'pe-join';
+    row.innerHTML = '<span>Same effect on more than one face</span><div class="pe-join-seg" role="radiogroup" aria-label="Same effect on more than one face">'
+      + [['fit', 'Fit', 'One picture across them'], ['copy', 'Copy', 'The whole picture on each'], ['wrap', 'Wrap', 'Wrap round the cube']].map(([k, l, t]) => `<button type="button" role="radio" data-join="${k}" title="${t}">${l}</button>`).join('') + '</div>';
+    row.querySelectorAll('[data-join]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setCubeJoin', join: b.dataset.join })));
+    pe.before(row);
+  }
   const sheet = document.querySelector('#draw-modal .tm-sheet'), cv = document.getElementById('draw-canvas');
   if (sheet && cv && !sheet.querySelector('.dm-tools')) {
     const tools = document.createElement('div'); tools.className = 'dm-tools';

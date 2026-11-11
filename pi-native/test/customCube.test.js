@@ -294,6 +294,41 @@ await asyncTest('WS setFaceEffect/setFaceOpts/setFaceOverlays/saveCube/loadCube/
   });
 });
 
+// Faces sharing an effect: 'copy' draws the same picture on each, 'fit'
+// draws one picture across them (so they differ), 'wrap' is the cube version.
+test('custom cube: Fit, Copy and Wrap join faces that share an effect', () => {
+  const inner = (core, f) => { const out = []; const S = core.SIZE; for (let v = 8; v < S - 8; v += 4) for (let u = 8; u < S - 8; u += 4) { const i = core.faceMap[f][v * S + u]; out.push(core.colBuf[i * 3].toFixed(3)); } return out.join(','); };
+  const run = (join) => {
+    const core = new CubeCore(32);
+    core.customCubeFaces = [{ effect: 'plasma', overlayKeys: [], opts: {} }, null, { effect: 'plasma', overlayKeys: [], opts: {} }, null, null, null];
+    core.customCubeJoin = join; core.overlaysState = OV_DEFAULTS;
+    EFFECTS.custom_cube(core, 1 / 30);
+    return core;
+  };
+  const copy = run('copy');
+  assert.strictEqual(inner(copy, 0), inner(copy, 2), 'copy: the same picture on both faces');
+  assert.ok(/[1-9]/.test(inner(copy, 0)), 'and it is drawn');
+  const fit = run('fit');
+  assert.notStrictEqual(inner(fit, 0), inner(fit, 2), 'fit: one picture across both, so the halves differ');
+  const wrap = run('wrap');
+  assert.ok(/[1-9]/.test(inner(wrap, 0)), 'wrap still draws');
+});
+
+await asyncTest('WS setCubeJoin saves a valid choice and ignores anything else', async () => {
+  await withServer(async (wsServer, state, port) => {
+    const client = await connectClient(port);
+    await nextMessage(client);
+    client.send(JSON.stringify({ cmd: 'setCubeJoin', join: 'copy' }));
+    const after = await nextMessage(client);
+    assert.strictEqual(after.customCube.join, 'copy');
+    client.send(JSON.stringify({ cmd: 'setCubeJoin', join: 'sideways' }));
+    client.send(JSON.stringify({ cmd: 'setCubeJoin', join: 'wrap' }));
+    const after2 = await nextMessage(client);
+    assert.strictEqual(after2.customCube.join, 'wrap');
+    client.close();
+  });
+});
+
 await asyncTest('WS: overlays on a face with no effect are kept and shown', async () => {
   await withServer(async (wsServer, state, port) => {
     const client = await connectClient(port);

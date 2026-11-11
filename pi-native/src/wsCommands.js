@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { EFFECTS, WALL_EFFECTS } = require('./effects');
 const { OVERLAY_KEYS } = require('./effects/overlays');
 const panelConfig = require('./panelConfig');
+const customCubeConfig = require('./customCubeConfig');
 const unsplashConfig = require('./unsplashConfig');
 const nasaConfig = require('./nasaConfig');
 const weatherConfig = require('./weatherConfig');
@@ -476,6 +477,14 @@ const COMMANDS = {
     const idx = Number(msg.index);
     if (!Number.isInteger(idx) || idx < 0 || idx >= this.state.customCube.library.length) return;
     this.state.customCube.library.splice(idx, 1);
+    this._persistCustomCube();
+  },
+
+  // How faces that share an effect are joined: 'fit' (one picture across
+  // them), 'copy' (the whole picture on each) or 'wrap' (the cube version).
+  setCubeJoin(ws, msg) {
+    if (!this.state.customCube || !customCubeConfig.JOINS.includes(msg.join)) return;
+    this.state.customCube.join = msg.join;
     this._persistCustomCube();
   },
 

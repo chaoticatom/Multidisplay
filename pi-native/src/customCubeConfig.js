@@ -38,7 +38,8 @@ function emptyFaces() {
   return [null, null, null, null, null, null];
 }
 
-const DEFAULT_CONFIG = { faces: emptyFaces(), library: [] };
+const JOINS = ['fit', 'copy', 'wrap'];
+const DEFAULT_CONFIG = { faces: emptyFaces(), library: [], join: 'fit' };
 
 function load() {
   try {
@@ -46,12 +47,14 @@ function load() {
     const parsed = JSON.parse(raw);
     const faces = isValidFaces(parsed.faces) ? parsed.faces : emptyFaces();
     const library = isValidLibrary(parsed.library) ? parsed.library : [];
-    return { faces, library };
+    // How faces sharing an effect are joined (see effects/customCube.js).
+    const join = JOINS.includes(parsed.join) ? parsed.join : 'fit';
+    return { faces, library, join };
   } catch (err) {
     // Missing file (first run) or corrupt content - fall back to defaults
     // rather than crashing the app over a config file, same spirit as
     // panelConfig.load()/alarmConfig.load()'s catch branches.
-    return { faces: emptyFaces(), library: [] };
+    return { faces: emptyFaces(), library: [], join: 'fit' };
   }
 }
 
@@ -61,5 +64,5 @@ function save(config) {
 
 module.exports = {
   load, save, isValidFaceConfig, isValidFaces, isValidLibraryEntry, isValidLibrary,
-  NUM_FACES, DEFAULT_CONFIG, CONFIG_PATH,
+  NUM_FACES, DEFAULT_CONFIG, CONFIG_PATH, JOINS,
 };

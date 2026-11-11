@@ -71,6 +71,7 @@ function tick(core, state, config, EFFECTS, WALL_EFFECTS, alarms, runOverlays, d
   core.quality = (state.prefs && state.prefs.quality) || 'auto'; // colour-effect detail (effects/surface.js)
   core.tz = state.prefs && state.prefs.tz; // the user's time zone, for effects that show a time (see localTime.js)
   core.customCubeFaces = state.customCube && state.customCube.faces;
+  core.customCubeJoin = (state.customCube && state.customCube.join) || 'fit';
   core.overlaysState = state.overlays;
 
   // "Identify Panels" calibration mode - see identify.js's module comment.

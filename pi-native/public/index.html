@@ -2107,6 +2107,12 @@ body.hm .wall-cell.empty:hover::after { color: #7FE6FF !important; }
 body.hm .wall-cell.drop-target { border-color: #7FE6FF !important; background: rgba(127,230,255,0.18) !important; }
 body.hm .wall-remove { width: 26px !important; height: 26px !important; border-radius: 50% !important; background: rgba(5,7,12,0.8) !important; border: 1px solid #FF7A7A !important; color: #FF7A7A !important; }
 
+/* Faces: how faces sharing an effect are joined. */
+.pe-join { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 14px; font-size: 13px; color: #8892A6; }
+.pe-join-seg { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: #0D1118; border: 1px solid #171C26; }
+.pe-join-seg button { height: 30px; padding: 0 16px; border-radius: 999px; border: 0; background: transparent; color: #8892A6; font: 500 13px Inter, sans-serif; cursor: pointer; }
+.pe-join-seg button.on { background: #E8ECF4; color: #0A0C11; font-weight: 600; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -3927,6 +3933,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.21"></script>
+<script src="app.js?v=0.7.22"></script>
 </body>
 </html>
