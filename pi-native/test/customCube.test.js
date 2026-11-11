@@ -314,6 +314,16 @@ test('custom cube: Fit, Copy and Wrap join faces that share an effect', () => {
   assert.ok(/[1-9]/.test(inner(wrap, 0)), 'wrap still draws');
 });
 
+test('custom cube: two faces with different effects each show their own', () => {
+  const inner = (core, f) => { const out = []; const S = core.SIZE; for (let v = 8; v < S - 8; v += 4) for (let u = 8; u < S - 8; u += 4) { const i = core.faceMap[f][v * S + u]; out.push(core.colBuf[i * 3].toFixed(3), core.colBuf[i * 3 + 2].toFixed(3)); } return out.join(','); };
+  const core = new CubeCore(32);
+  // A real report: Front = Globe, Left = Retro showed Retro on both.
+  core.customCubeFaces = [{ effect: 'plasma', overlayKeys: [], opts: {} }, null, null, { effect: 'globe', overlayKeys: [], opts: {} }, null, null];
+  core.customCubeJoin = 'fit'; core.overlaysState = OV_DEFAULTS;
+  EFFECTS.custom_cube(core, 1 / 30);
+  assert.notStrictEqual(inner(core, 0), inner(core, 3), 'each face shows its own effect');
+});
+
 await asyncTest('WS setCubeJoin saves a valid choice and ignores anything else', async () => {
   await withServer(async (wsServer, state, port) => {
     const client = await connectClient(port);

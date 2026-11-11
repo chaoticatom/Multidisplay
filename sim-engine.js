@@ -27157,8 +27157,9 @@ var PiEngine = (() => {
       var RING = [0, 2, 1, 3, 4, 5];
       var JOINS = ["fit", "copy", "wrap"];
       var _canvases = /* @__PURE__ */ new Map();
-      function canvasFor(cols, size) {
-        const key = cols + "x" + size;
+      function canvasFor(effectKey, cols, size) {
+        const key = effectKey + ":" + cols + "x" + size;
+        if (!_canvases.has(key) && _canvases.size >= 12) _canvases.clear();
         let c = _canvases.get(key);
         if (!c) {
           const { CubeCore } = require_core();
@@ -27174,7 +27175,7 @@ var PiEngine = (() => {
       function renderFlat(core, dt, fnKey, cols, opts, savedOptions) {
         const fn = getWallEffects()[fnKey];
         if (!fn || fnKey === "custom_cube") return null;
-        const c = canvasFor(cols, core.SIZE);
+        const c = canvasFor(fnKey, cols, core.SIZE);
         c.audio = core.audio;
         c.quality = core.quality;
         c.panelMode = "wall";

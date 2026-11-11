@@ -32,9 +32,12 @@ function getWallEffects() {
 // Side faces in order round the cube, then top and bottom.
 const RING = [0, 2, 1, 3, 4, 5];
 const JOINS = ['fit', 'copy', 'wrap'];
-const _canvases = new Map(); // "<cols>x<size>" -> a CubeCore used as a flat canvas
-function canvasFor(cols, size) {
-  const key = cols + 'x' + size;
+const _canvases = new Map(); // "<effect>:<cols>x<size>" -> a CubeCore used as a flat canvas
+// One canvas per effect: each group's picture is kept until its faces are
+// copied (sharing one by size made every face show the last effect drawn).
+function canvasFor(effectKey, cols, size) {
+  const key = effectKey + ':' + cols + 'x' + size;
+  if (!_canvases.has(key) && _canvases.size >= 12) _canvases.clear(); // forget old ones now and then
   let c = _canvases.get(key);
   if (!c) {
     const { CubeCore } = require('../core'); // eslint-disable-line global-require
@@ -50,7 +53,7 @@ function canvasFor(cols, size) {
 function renderFlat(core, dt, fnKey, cols, opts, savedOptions) {
   const fn = getWallEffects()[fnKey];
   if (!fn || fnKey === 'custom_cube') return null;
-  const c = canvasFor(cols, core.SIZE);
+  const c = canvasFor(fnKey, cols, core.SIZE);
   // Share settings and music with the real core (each canvas keeps its own clock).
   c.audio = core.audio; c.quality = core.quality; c.panelMode = 'wall'; c.overlaysState = core.overlaysState;
   c.effectOptions = { ...savedOptions, [fnKey]: opts || {} };
