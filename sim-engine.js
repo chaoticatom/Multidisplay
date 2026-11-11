@@ -5174,7 +5174,7 @@ var PiEngine = (() => {
       var RING_SAMPLES = 1 << 18;
       var DEFAULT_SYNC_MS = 200;
       var MAX_SYNC_MS = 3e3;
-      var PLAY_BUF_MS = 150;
+      var PLAY_BUF_MS = 400;
       var QUEUE_MS = 400;
       var SEGMENTED_PREFILL_MS = 5e3;
       var QUEUE_MAX_PREFILL_MS = 8e3;
@@ -7721,15 +7721,47 @@ var PiEngine = (() => {
         const d = /* @__PURE__ */ new Date();
         return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
       }
+      var SEG = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg" };
+      function drawDigit(plot, d, x0, y0, w, h, th) {
+        const mid = y0 + Math.floor((h - th) / 2), on = SEG[d] || "";
+        const hbar = (y) => {
+          for (let y1 = y; y1 < y + th; y1++) for (let x = x0 + th; x < x0 + w - th; x++) plot(x, y1);
+        };
+        const vbar = (x, ya, yb) => {
+          for (let x1 = x; x1 < x + th; x1++) for (let y = ya; y < yb; y++) plot(x1, y);
+        };
+        if (on.includes("a")) hbar(y0);
+        if (on.includes("g")) hbar(mid);
+        if (on.includes("d")) hbar(y0 + h - th);
+        if (on.includes("f")) vbar(x0, y0 + th, mid);
+        if (on.includes("b")) vbar(x0 + w - th, y0 + th, mid);
+        if (on.includes("e")) vbar(x0, mid + th, y0 + h - th);
+        if (on.includes("c")) vbar(x0 + w - th, mid + th, y0 + h - th);
+      }
+      function drawDigitalClock(plot, W, top, h) {
+        const t = clockText(), th = Math.max(1, Math.round(h / 9)), w = Math.max(4, Math.round(h * 0.42)), gap = Math.max(1, th), colon = th * 3;
+        const total = w * 4 + gap * 3 + colon + gap * 2;
+        let x = Math.floor((W - total) / 2);
+        for (const ch of t) {
+          if (ch === ":") {
+            if ((/* @__PURE__ */ new Date()).getSeconds() % 2 === 0) for (const cy of [top + Math.round(h * 0.3), top + Math.round(h * 0.7) - th]) for (let yy = cy; yy < cy + th; yy++) for (let xx = x + th; xx < x + th * 2; xx++) plot(xx, yy);
+            x += colon + gap;
+          } else {
+            drawDigit(plot, Number(ch), x, top, w, h, th);
+            x += w + gap;
+          }
+        }
+      }
       function drawClock(core) {
-        const M = core.SIZE - 1, t = clockText();
+        const S = core.SIZE, M = S - 1;
         if (core.panelMode === "2d") {
-          const p2 = facePlot(core, 0, 1, 1, 1);
-          drawLinesCentered(FONT_3x5, [t], core.SIZE, 12, (x, y) => p2(x, M - y));
+          const p2 = facePlot(core, 0, 1, 0.92, 0.85);
+          drawDigitalClock((x, y) => p2(x, M - y), S, 2, Math.max(7, Math.round(S / 7)));
           return;
         }
-        const p = facePlot(core, 4, 1, 1, 1);
-        drawLinesCentered(FONT_3x5, [t], core.SIZE, core.SIZE, (x, y) => p(x, M - y), { scale: core.SIZE >= 64 ? 2 : 1 });
+        const p = facePlot(core, 4, 1, 0.92, 0.85);
+        const h = Math.round(S * 0.36);
+        drawDigitalClock((x, y) => p(x, M - y), S, Math.floor((S - h) / 2), h);
       }
       function drawStaticLabel(core, face, text, sv) {
         if (!text) return;
@@ -7775,6 +7807,8 @@ var PiEngine = (() => {
       };
       module.exports.getPlaybackState = getPlaybackState;
       module.exports.clockText = clockText;
+      module.exports.drawClock = drawClock;
+      module.exports.drawDigitalClock = drawDigitalClock;
       module.exports.sample = sample;
     }
   });
@@ -32247,7 +32281,7 @@ var PiEngine = (() => {
             drawTickerWall(core, label, dt);
           }
         }
-        if (opts.clock) drawLinesCentered(FONT_3x5, [radio.clockText()], core.wallW, 12, wallPlot(core, 1, 1, 1));
+        if (opts.clock) radio.drawDigitalClock(wallPlot(core, 1, 0.92, 0.85), core.wallW, 2, Math.max(9, Math.round(core.wallH / 6)));
       }
       module.exports = effectRadioWall;
       module.exports.getStatus = radio.getStatus;
@@ -32483,7 +32517,11 @@ var PiEngine = (() => {
         fireworks,
         retro,
         video,
-        radio: withTop(radio, recordTop),
+        radio: withTop(radio, (core, fn) => {
+          recordTop(core, fn);
+          if (core.effectOptions?.radio?.clock) radio.drawClock(core);
+        }),
+        // the time goes over the record
         strobe,
         balls,
         sand,

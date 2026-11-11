@@ -34,7 +34,7 @@ const DEFAULT_SYNC_MS = 200; // the speaker's own delay when it can't be measure
 const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
 // Paced playback (see _onData): paplay's own buffer, our queue's prefill, and
 // how far a burst may run ahead before the oldest audio is dropped.
-const PLAY_BUF_MS = 150;
+const PLAY_BUF_MS = 400; // room for Bluetooth hiccups while the Pi is busy (150 stuttered)
 const QUEUE_MS = 400;
 const SEGMENTED_PREFILL_MS = 5000; // HLS stations: the cushion to start with (see ensure())
 const QUEUE_MAX_PREFILL_MS = 8000; // the most a bursty station's cushion grows to

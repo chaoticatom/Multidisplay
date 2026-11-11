@@ -2113,6 +2113,10 @@ body.hm .wall-remove { width: 26px !important; height: 26px !important; border-r
 .pe-join-seg button { height: 30px; padding: 0 16px; border-radius: 999px; border: 0; background: transparent; color: #8892A6; font: 500 13px Inter, sans-serif; cursor: pointer; }
 .pe-join-seg button.on { background: #E8ECF4; color: #0A0C11; font-weight: 600; }
 
+/* The Now tab's dials: the invisible slider covers the whole card. */
+body.hm #sidebar .nx-dial input[type=range] { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; opacity: 0 !important; margin: 0 !important; -webkit-appearance: auto; appearance: auto; }
+body.hm .nx-dial { position: relative; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -3934,6 +3938,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.26"></script>
+<script src="app.js?v=0.7.27"></script>
 </body>
 </html>

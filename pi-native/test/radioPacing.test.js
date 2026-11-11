@@ -25,9 +25,9 @@ const { RadioAudio } = require('../src/effects/radio/ffmpegAudio');
     assert.ok(writes.length >= 8, 'written out over time: ' + writes.length);
     const span = writes[writes.length - 1].at - writes[0].at;
     assert.ok(span > 600, 'paced in real time, not all at once: ' + span + ' ms');
-    // Each piece's phone timestamp ~ its write time + 150 (paplay) + 250 (speaker).
+    // Each piece's phone timestamp ~ its write time + 400 (paplay) + 250 (speaker).
     for (let i = 0; i < writes.length; i++) {
-      const err = stamps[i].t - (writes[i].at + 150 + 250);
+      const err = stamps[i].t - (writes[i].at + 400 + 250);
       assert.ok(Math.abs(err) < 60, `piece ${i}: phone time off by ${err} ms`);
     }
     console.log('radioPacing ok');

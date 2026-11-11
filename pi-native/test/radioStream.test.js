@@ -20,4 +20,17 @@ test('segmented stations are recognised', () => {
   assert.ok(!segmentedStream('https://ice1.somafm.com/groovesalad-128-mp3'));
 });
 
+test('Show the time draws on the cube top, over the record', () => {
+  // A real report: the record on the top face was drawn after the time.
+  const { CubeCore } = require('../src/core');
+  const { EFFECTS } = require('../src/effects');
+  const top = (clock) => {
+    const c = new CubeCore(64); c.effectOptions = { radio: { clock, spectrumOn: true } };
+    EFFECTS.radio(c, 1 / 30); EFFECTS.radio(c, 1 / 30);
+    let n = 0; for (const i of c.faceMap[4]) if (i >= 0 && c.colBuf[i * 3] > 0.95 && c.colBuf[i * 3 + 1] > 0.85 && c.colBuf[i * 3 + 2] > 0.8) n++;
+    return n;
+  };
+  assert.ok(top(true) > top(false) + 20, 'white digits on the top face');
+});
+
 if (!process.exitCode) console.log('\nAll radioStream tests passed');

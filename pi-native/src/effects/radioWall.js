@@ -192,7 +192,7 @@ function effectRadioWall(core, dt) {
     }
   }
   // "Show the time": HH:MM along the top.
-  if (opts.clock) drawLinesCentered(FONT_3x5, [radio.clockText()], core.wallW, 12, wallPlot(core, 1, 1, 1));
+  if (opts.clock) radio.drawDigitalClock(wallPlot(core, 1, 0.92, 0.85), core.wallW, 2, Math.max(9, Math.round(core.wallH / 6)));
 }
 
 module.exports = effectRadioWall;

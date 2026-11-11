@@ -76,7 +76,7 @@ await test('decode succeeds and updates band levels even when playback (paplay) 
   // produces non-zero energy somewhere.
   // Half a second: the analyser needs a full (bass) window of audio behind
   // its play cursor before it produces a spectrum.
-  const frameSamples = 22050;
+  const frameSamples = 66150; // 1.5 s: enough to pass the speaker delay (paplay buffer + sync) too
   const buf = Buffer.alloc(frameSamples * 4);
   for (let i = 0; i < frameSamples; i++) {
     const v = Math.round(Math.sin(i * 0.2) * 20000);

@@ -264,15 +264,43 @@ function effectRadio(core, dt) {
 // along the top of a single panel. Face rows run bottom-up (see the hint
 // above), so the text is flipped.
 function clockText() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+// Seven-segment digits, like a bedside clock. plot(x, y) in canvas rows
+// (top-down); h is the digit height, th the stroke.
+const SEG = { 0: 'abcdef', 1: 'bc', 2: 'abdeg', 3: 'abcdg', 4: 'bcfg', 5: 'acdfg', 6: 'acdefg', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
+function drawDigit(plot, d, x0, y0, w, h, th) {
+  const mid = y0 + Math.floor((h - th) / 2), on = SEG[d] || '';
+  const hbar = (y) => { for (let y1 = y; y1 < y + th; y1++) for (let x = x0 + th; x < x0 + w - th; x++) plot(x, y1); };
+  const vbar = (x, ya, yb) => { for (let x1 = x; x1 < x + th; x1++) for (let y = ya; y < yb; y++) plot(x1, y); };
+  if (on.includes('a')) hbar(y0);
+  if (on.includes('g')) hbar(mid);
+  if (on.includes('d')) hbar(y0 + h - th);
+  if (on.includes('f')) vbar(x0, y0 + th, mid);
+  if (on.includes('b')) vbar(x0 + w - th, y0 + th, mid);
+  if (on.includes('e')) vbar(x0, mid + th, y0 + h - th);
+  if (on.includes('c')) vbar(x0 + w - th, mid + th, y0 + h - th);
+}
+// HH:MM centred in a W x H area; the colon blinks each second.
+function drawDigitalClock(plot, W, top, h) {
+  const t = clockText(), th = Math.max(1, Math.round(h / 9)), w = Math.max(4, Math.round(h * 0.42)), gap = Math.max(1, th), colon = th * 3;
+  const total = w * 4 + gap * 3 + colon + gap * 2;
+  let x = Math.floor((W - total) / 2);
+  for (const ch of t) {
+    if (ch === ':') {
+      if (new Date().getSeconds() % 2 === 0) for (const cy of [top + Math.round(h * 0.3), top + Math.round(h * 0.7) - th]) for (let yy = cy; yy < cy + th; yy++) for (let xx = x + th; xx < x + th * 2; xx++) plot(xx, yy);
+      x += colon + gap;
+    } else { drawDigit(plot, Number(ch), x, top, w, h, th); x += w + gap; }
+  }
+}
 function drawClock(core) {
-  const M = core.SIZE - 1, t = clockText();
-  if (core.panelMode === '2d') {
-    const p = facePlot(core, 0, 1, 1, 1);
-    drawLinesCentered(FONT_3x5, [t], core.SIZE, 12, (x, y) => p(x, M - y));
+  const S = core.SIZE, M = S - 1;
+  if (core.panelMode === '2d') { // a small one along the top of a single panel
+    const p = facePlot(core, 0, 1, 0.92, 0.85);
+    drawDigitalClock((x, y) => p(x, M - y), S, 2, Math.max(7, Math.round(S / 7)));
     return;
   }
-  const p = facePlot(core, 4, 1, 1, 1);
-  drawLinesCentered(FONT_3x5, [t], core.SIZE, core.SIZE, (x, y) => p(x, M - y), { scale: core.SIZE >= 64 ? 2 : 1 });
+  const p = facePlot(core, 4, 1, 0.92, 0.85); // big, in the middle of the top face
+  const h = Math.round(S * 0.36);
+  drawDigitalClock((x, y) => p(x, M - y), S, Math.floor((S - h) / 2), h);
 }
 
 // Centered, non-scrolling text - see effectRadio()'s call for why (the
@@ -336,4 +364,6 @@ module.exports.useRemoteAudio = () => {
 };
 module.exports.getPlaybackState = getPlaybackState;
 module.exports.clockText = clockText;
+module.exports.drawClock = drawClock;
+module.exports.drawDigitalClock = drawDigitalClock;
 module.exports.sample = sample;

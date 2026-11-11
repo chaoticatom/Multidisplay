@@ -237,7 +237,7 @@ const EFFECTS = {
   fireworks,
   retro,
   video,
-  radio: withTop(radio, recordTop),
+  radio: withTop(radio, (core, fn) => { recordTop(core, fn); if (core.effectOptions?.radio?.clock) radio.drawClock(core); }), // the time goes over the record
   strobe,
   balls,
   sand,
