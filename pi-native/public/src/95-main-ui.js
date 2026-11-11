@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMazePanel();
   wireTronPanel();
   wireDatetimePanel();
+  wireArtClockPanel();
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();

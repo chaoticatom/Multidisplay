@@ -62,6 +62,7 @@ const rubiks = require('./rubiks'); // Rubik's Cube
 const cubeScenes2 = require('./cubeScenes2'); // Globe, Equaliser Tower, Lighthouse
 const aquarium = require('./aquarium'); // Aquarium
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
+const artClock = require('./artClock'); // Art Clock - graphical clocks (galaxy, solar system, ...)
 const { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require('./cubeTops'); // cube top pictures for text/info effects
 const ghost = require('./ghostFace'); // Ghost Face
 const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
@@ -176,6 +177,7 @@ const WALL_EFFECTS = {
   radar: radar.wall,
   talking_face: talkingFace.wall,
   datetime: datetimeWall,
+  art_clock: artClock.wall,
   moon: celestialWall,
   ghost: ghostWall,
   ghost2: ghost3d.wall,
@@ -249,6 +251,7 @@ const EFFECTS = {
   ghost: withTop(ghost, haloTop),
   ghost2: withTop(ghost3d, haloTop),
   datetime: withTop(datetime, clockTop),
+  art_clock: artClock,
   moon: withTop(moon, moonTop),
   epic,
   apod,
@@ -325,6 +328,7 @@ const EFFECT_NAMES = {
   ghost: 'Ghost Face',
   ghost2: 'Ghost Face 2 (3D)',
   datetime: 'Time & Date',
+  art_clock: 'Art Clock',
   moon: 'Celestial',
   epic: 'Earth Live View',
   apod: 'Astronomy Pic of the Day',
