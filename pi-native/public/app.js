@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.22';
+const APP_VERSION = '0.7.23';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -370,6 +370,12 @@ async function loadEffectNames() {
         // tab - go there, or tapping an effect with options seemed to do
         // nothing (a real report: "nothing happens when I click internet radio").
         if (key === 'radio') setTab('music');
+        // Custom Cube is set up face by face: go to the Faces tab (it has no
+        // options panel, so tapping it seemed to do nothing).
+        else if (key === 'custom_cube' && document.getElementById('panel-editor-section')) {
+          try { const m = JSON.parse(localStorage.getItem('subtab') || '{}'); m.play = 'Draw on a Face'; localStorage.setItem('subtab', JSON.stringify(m)); } catch (e) { /* storage unavailable */ }
+          setTab('play'); if (typeof menuOpen !== 'undefined' && !menuOpen) toggleMenu();
+        }
         // Settings open only when tapping the effect that's already running (or
         // via ⚙ Options) - jumping up on every pick meant scrolling back down
         // to the tiles each time.
