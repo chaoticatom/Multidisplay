@@ -191,6 +191,8 @@ function effectRadioWall(core, dt) {
       drawTickerWall(core, label, dt);
     }
   }
+  // "Show the time": HH:MM along the top.
+  if (opts.clock) drawLinesCentered(FONT_3x5, [radio.clockText()], core.wallW, 12, wallPlot(core, 1, 1, 1));
 }
 
 module.exports = effectRadioWall;

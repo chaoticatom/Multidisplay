@@ -36,10 +36,20 @@ const MAX_SYNC_MS = 3000; // some Bluetooth speakers lag well over a second
 // how far a burst may run ahead before the oldest audio is dropped.
 const PLAY_BUF_MS = 150;
 const QUEUE_MS = 400;
+const SEGMENTED_PREFILL_MS = 5000; // HLS stations: the cushion to start with (see ensure())
 const QUEUE_MAX_PREFILL_MS = 8000; // the most a bursty station's cushion grows to
 const QUEUE_CAP_MS = 25000; // beyond this much queued, a burst is skipped (safety net only)
 const BYTES_PER_MS = (SAMPLE_RATE * CHANNELS * 2) / 1000;
 const AUTO_SYNC_EVERY_MS = 9000; // Auto speaker sync: how often the delay is measured
+
+// Internet radio streams: reconnect quickly after a dropped connection
+// instead of ending (which waits for the 15 s stall restart).
+function streamOptions(url) {
+  if (!/^https?:/i.test(url || '') || /googlevideo\.com/.test(url)) return [];
+  return ['-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5'];
+}
+// Stations sent in multi-second segments (HLS playlists, the BBC's streams).
+function segmentedStream(url) { return /\.m3u8(\?|$)|bbc|akamaized|lstn\.lv/i.test(url || ''); }
 
 // Auto speaker sync: how late our stream is heard, from `pactl list
 // sink-inputs` - the sound server's own buffer plus the output's latency
@@ -141,7 +151,10 @@ class RadioAudio {
       this._teardown();
       this.url = url;
       this.errored = false;
-      this._prefill = QUEUE_MS; // a new station starts with the short cushion again
+      // A new station starts with the short cushion again - except stations
+      // that arrive in multi-second segments (HLS, e.g. the BBC), which
+      // otherwise stutter until the cushion has grown after a few gaps.
+      this._prefill = segmentedStream(url) ? SEGMENTED_PREFILL_MS : QUEUE_MS;
       this._launch(url);
       return;
     }
@@ -212,6 +225,7 @@ class RadioAudio {
         'pipe:1',
       ] : [
         '-loglevel', 'error',
+        ...streamOptions(url),
         ...youtube.inputOptions(url).opts,
         '-i', youtube.inputOptions(url).url,
         '-vn',
@@ -854,4 +868,4 @@ function applyRemoteRequest(audio, req, seen) {
   return { ensureCount: req.ensureCount, clearCount: req.clearCount };
 }
 
-module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require('./fft').BAND_COUNT, __scale: scalePcm };
+module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require('./fft').BAND_COUNT, __scale: scalePcm, streamOptions, segmentedStream };

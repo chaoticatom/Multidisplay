@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.24';
+const APP_VERSION = '0.7.25';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -2928,6 +2928,7 @@ function wireRadioPanel() {
       setEffectOption('radio', 'barMode', btn.dataset.barmode);
     });
   });
+  radioDisplayPanel().querySelector('.au-clock-el')?.addEventListener('change', (e) => setEffectOption('radio', 'clock', e.target.checked));
   const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk) fitScreenChk.addEventListener('change', () => setEffectOption('radio', 'fitToScreen', fitScreenChk.checked));
   const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');
@@ -3074,6 +3075,8 @@ function syncRadioPanel() {
   radioDisplayPanel().querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   radioDisplayPanel().querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
+  const clockChk = radioDisplayPanel().querySelector('.au-clock-el');
+  if (clockChk && document.activeElement !== clockChk) clockChk.checked = !!opts.clock;
   const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
   const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');
@@ -7435,6 +7438,16 @@ function wireMusicNext() {
   };
   const LABEL = { radio: 'Radio', dj: 'Auto-DJ', sound: 'Sound' };
   document.querySelectorAll('.mx-seg [data-mx]').forEach((b) => { const k = b.dataset.mx; if (ICON[k]) b.innerHTML = `<span class="mx-seg-i">${svgIcon(ICON[k], 22)}</span><span>${LABEL[k]}</span>`; });
+  // Spectrum settings (bands, style, scroll, time) live with the Internet
+  // Radio effect's options on the Now tab: a button beside Spectrum goes there.
+  const spec = document.getElementById('cx-show-spectrum');
+  if (spec && !document.getElementById('mx-spec-set')) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'mx-spec-set'; b.className = 'mx-btn';
+    b.setAttribute('aria-label', 'Spectrum settings'); b.title = 'Spectrum settings: bands, style, scroll, time';
+    b.innerHTML = svgIcon('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', 16);
+    b.addEventListener('click', () => { if (currentState.effect !== 'radio' && typeof cxShowSpectrum === 'function') cxShowSpectrum(); try { const m = JSON.parse(localStorage.getItem('subtab') || '{}'); m.play = 'Now'; localStorage.setItem('subtab', JSON.stringify(m)); } catch (e) { /* storage unavailable */ } hmOpen('now'); });
+    spec.after(b);
+  }
   const pane = document.querySelector('.mx-pane[data-mx="radio"]'), filters = document.getElementById('mx-filters');
   if (pane && filters && !document.getElementById('mxg')) {
     const box = document.createElement('div'); box.id = 'mxg'; filters.after(box);

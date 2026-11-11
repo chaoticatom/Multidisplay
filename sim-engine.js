@@ -5176,10 +5176,18 @@ var PiEngine = (() => {
       var MAX_SYNC_MS = 3e3;
       var PLAY_BUF_MS = 150;
       var QUEUE_MS = 400;
+      var SEGMENTED_PREFILL_MS = 5e3;
       var QUEUE_MAX_PREFILL_MS = 8e3;
       var QUEUE_CAP_MS = 25e3;
       var BYTES_PER_MS = SAMPLE_RATE * CHANNELS * 2 / 1e3;
       var AUTO_SYNC_EVERY_MS = 9e3;
+      function streamOptions(url) {
+        if (!/^https?:/i.test(url || "") || /googlevideo\.com/.test(url)) return [];
+        return ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"];
+      }
+      function segmentedStream(url) {
+        return /\.m3u8(\?|$)|bbc|akamaized|lstn\.lv/i.test(url || "");
+      }
       function parseStreamLatencyMs(text) {
         for (const block of String(text || "").split(/\n(?=Sink Input #)/)) {
           if (!/application\.(name|process\.binary) = "paplay"/.test(block)) continue;
@@ -5269,7 +5277,7 @@ var PiEngine = (() => {
             this._teardown();
             this.url = url;
             this.errored = false;
-            this._prefill = QUEUE_MS;
+            this._prefill = segmentedStream(url) ? SEGMENTED_PREFILL_MS : QUEUE_MS;
             this._launch(url);
             return;
           }
@@ -5332,6 +5340,7 @@ var PiEngine = (() => {
             ] : [
               "-loglevel",
               "error",
+              ...streamOptions(url),
               ...youtube.inputOptions(url).opts,
               "-i",
               youtube.inputOptions(url).url,
@@ -6016,7 +6025,7 @@ var PiEngine = (() => {
         if (req.ensureCount !== seen.ensureCount) audio.ensure(req.url);
         return { ensureCount: req.ensureCount, clearCount: req.clearCount };
       }
-      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require_fft().BAND_COUNT, __scale: scalePcm };
+      module.exports = { RadioAudio, RemoteAudio, applyRemoteRequest, parseStreamLatencyMs, BAND_COUNT: require_fft().BAND_COUNT, __scale: scalePcm, streamOptions, segmentedStream };
     }
   });
 
@@ -7706,6 +7715,21 @@ var PiEngine = (() => {
             if (core.panelMode !== "2d") for (const f of [1, 2, 3]) drawTicker(core, f, label, 0);
           }
         }
+        if (opts.clock) drawClock(core);
+      }
+      function clockText() {
+        const d = /* @__PURE__ */ new Date();
+        return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+      }
+      function drawClock(core) {
+        const M = core.SIZE - 1, t = clockText();
+        if (core.panelMode === "2d") {
+          const p2 = facePlot(core, 0, 1, 1, 1);
+          drawLinesCentered(FONT_3x5, [t], core.SIZE, 12, (x, y) => p2(x, M - y));
+          return;
+        }
+        const p = facePlot(core, 4, 1, 1, 1);
+        drawLinesCentered(FONT_3x5, [t], core.SIZE, core.SIZE, (x, y) => p(x, M - y), { scale: core.SIZE >= 64 ? 2 : 1 });
       }
       function drawStaticLabel(core, face, text, sv) {
         if (!text) return;
@@ -7750,6 +7774,7 @@ var PiEngine = (() => {
         return audio;
       };
       module.exports.getPlaybackState = getPlaybackState;
+      module.exports.clockText = clockText;
       module.exports.sample = sample;
     }
   });
@@ -32222,6 +32247,7 @@ var PiEngine = (() => {
             drawTickerWall(core, label, dt);
           }
         }
+        if (opts.clock) drawLinesCentered(FONT_3x5, [radio.clockText()], core.wallW, 12, wallPlot(core, 1, 1, 1));
       }
       module.exports = effectRadioWall;
       module.exports.getStatus = radio.getStatus;

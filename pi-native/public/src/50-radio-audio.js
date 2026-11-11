@@ -395,6 +395,7 @@ function wireRadioPanel() {
       setEffectOption('radio', 'barMode', btn.dataset.barmode);
     });
   });
+  radioDisplayPanel().querySelector('.au-clock-el')?.addEventListener('change', (e) => setEffectOption('radio', 'clock', e.target.checked));
   const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk) fitScreenChk.addEventListener('change', () => setEffectOption('radio', 'fitToScreen', fitScreenChk.checked));
   const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');
@@ -541,6 +542,8 @@ function syncRadioPanel() {
   radioDisplayPanel().querySelectorAll('.au-theme-btn[data-autheme]').forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.autheme) === (opts.theme ?? 5)));
   radioDisplayPanel().querySelectorAll('.au-barmode-btn[data-barmode]').forEach((btn) => btn.classList.toggle('active', btn.dataset.barmode === (opts.barMode || 'solid')));
 
+  const clockChk = radioDisplayPanel().querySelector('.au-clock-el');
+  if (clockChk && document.activeElement !== clockChk) clockChk.checked = !!opts.clock;
   const fitScreenChk = radioDisplayPanel().querySelector('.sp-fit-screen-el');
   if (fitScreenChk && document.activeElement !== fitScreenChk) fitScreenChk.checked = !!opts.fitToScreen;
   const autoGainChk = radioDisplayPanel().querySelector('.au-autogain-el');

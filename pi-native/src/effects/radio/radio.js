@@ -257,6 +257,22 @@ function effectRadio(core, dt) {
       if (core.panelMode !== '2d') for (const f of [1, 2, 3]) drawTicker(core, f, label, 0);
     }
   }
+  if (opts.clock) drawClock(core);
+}
+
+// "Show the time" (option clock): HH:MM in the middle of the top face, or
+// along the top of a single panel. Face rows run bottom-up (see the hint
+// above), so the text is flipped.
+function clockText() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function drawClock(core) {
+  const M = core.SIZE - 1, t = clockText();
+  if (core.panelMode === '2d') {
+    const p = facePlot(core, 0, 1, 1, 1);
+    drawLinesCentered(FONT_3x5, [t], core.SIZE, 12, (x, y) => p(x, M - y));
+    return;
+  }
+  const p = facePlot(core, 4, 1, 1, 1);
+  drawLinesCentered(FONT_3x5, [t], core.SIZE, core.SIZE, (x, y) => p(x, M - y), { scale: core.SIZE >= 64 ? 2 : 1 });
 }
 
 // Centered, non-scrolling text - see effectRadio()'s call for why (the
@@ -319,4 +335,5 @@ module.exports.useRemoteAudio = () => {
   return audio;
 };
 module.exports.getPlaybackState = getPlaybackState;
+module.exports.clockText = clockText;
 module.exports.sample = sample;

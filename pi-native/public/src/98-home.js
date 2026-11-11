@@ -271,6 +271,16 @@ function wireMusicNext() {
   };
   const LABEL = { radio: 'Radio', dj: 'Auto-DJ', sound: 'Sound' };
   document.querySelectorAll('.mx-seg [data-mx]').forEach((b) => { const k = b.dataset.mx; if (ICON[k]) b.innerHTML = `<span class="mx-seg-i">${svgIcon(ICON[k], 22)}</span><span>${LABEL[k]}</span>`; });
+  // Spectrum settings (bands, style, scroll, time) live with the Internet
+  // Radio effect's options on the Now tab: a button beside Spectrum goes there.
+  const spec = document.getElementById('cx-show-spectrum');
+  if (spec && !document.getElementById('mx-spec-set')) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'mx-spec-set'; b.className = 'mx-btn';
+    b.setAttribute('aria-label', 'Spectrum settings'); b.title = 'Spectrum settings: bands, style, scroll, time';
+    b.innerHTML = svgIcon('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>', 16);
+    b.addEventListener('click', () => { if (currentState.effect !== 'radio' && typeof cxShowSpectrum === 'function') cxShowSpectrum(); try { const m = JSON.parse(localStorage.getItem('subtab') || '{}'); m.play = 'Now'; localStorage.setItem('subtab', JSON.stringify(m)); } catch (e) { /* storage unavailable */ } hmOpen('now'); });
+    spec.after(b);
+  }
   const pane = document.querySelector('.mx-pane[data-mx="radio"]'), filters = document.getElementById('mx-filters');
   if (pane && filters && !document.getElementById('mxg')) {
     const box = document.createElement('div'); box.id = 'mxg'; filters.after(box);
