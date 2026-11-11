@@ -27165,8 +27165,8 @@ var PiEngine = (() => {
         if (core.panelMode === "2d") {
           for (let i = 0; i < N * 3; i += 1) colBuf[i] = 0;
           const faceConfig = core.customCubeFaces && core.customCubeFaces[0];
-          if (!faceConfig || !faceConfig.effect || faceConfig.effect === "none") return;
-          const rendered = renderFaceEffect(core, dt, faceConfig, savedOptions);
+          if (!faceConfig || !faceConfig.effect) return;
+          const rendered = faceConfig.effect === "none" ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
           if (rendered && faceConfig.overlayKeys && faceConfig.overlayKeys.length) {
             applyFaceOverlays(core, 0, faceConfig.overlayKeys, dt, overlayState);
           }
@@ -27179,9 +27179,10 @@ var PiEngine = (() => {
         const SIZE = core.SIZE;
         for (let f = 0; f < 6; f += 1) {
           const faceConfig = faces[f];
-          if (!faceConfig || !faceConfig.effect || faceConfig.effect === "none") continue;
+          if (!faceConfig || !faceConfig.effect) continue;
+          if (faceConfig.effect === "none" && !(faceConfig.overlayKeys && faceConfig.overlayKeys.length)) continue;
           for (let i = 0; i < N * 3; i += 1) colBuf[i] = 0;
-          const rendered = renderFaceEffect(core, dt, faceConfig, savedOptions);
+          const rendered = faceConfig.effect === "none" ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
           if (!rendered) continue;
           if (faceConfig.overlayKeys && faceConfig.overlayKeys.length) {
             applyFaceOverlays(core, f, faceConfig.overlayKeys, dt, overlayState);

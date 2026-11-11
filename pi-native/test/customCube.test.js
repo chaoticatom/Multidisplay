@@ -294,6 +294,27 @@ await asyncTest('WS setFaceEffect/setFaceOpts/setFaceOverlays/saveCube/loadCube/
   });
 });
 
+await asyncTest('WS: overlays on a face with no effect are kept and shown', async () => {
+  await withServer(async (wsServer, state, port) => {
+    const client = await connectClient(port);
+    await nextMessage(client);
+    client.send(JSON.stringify({ cmd: 'setFaceOverlays', face: 1, overlayKeys: ['stars'] }));
+    const after = await nextMessage(client);
+    assert.deepStrictEqual(after.customCube.faces[1], { effect: 'none', overlayKeys: ['stars'], opts: {} });
+    assert.strictEqual(after.effect, 'custom_cube');
+    // Rendering it doesn't throw (the overlay is drawn over black).
+    const core = new CubeCore(64);
+    core.customCubeFaces = after.customCube.faces;
+    core.overlaysState = OV_DEFAULTS;
+    EFFECTS.custom_cube(core, 1 / 30);
+    // Taking the overlay off leaves the face unassigned again.
+    client.send(JSON.stringify({ cmd: 'setFaceOverlays', face: 1, overlayKeys: [] }));
+    const cleared = await nextMessage(client);
+    assert.strictEqual(cleared.customCube.faces[1], null);
+    client.close();
+  });
+});
+
 await asyncTest('WS setFaceEffect rejects an out-of-range face index without crashing or persisting', async () => {
   await withServer(async (wsServer, state, port) => {
     const client = await connectClient(port);

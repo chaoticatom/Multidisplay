@@ -395,7 +395,9 @@ const COMMANDS = {
     const face = Number(msg.face);
     if (!Number.isInteger(face) || face < 0 || face > 5) return;
     if (msg.effect === null || msg.effect === undefined || msg.effect === 'none') {
-      this.state.customCube.faces[face] = null;
+      // No effect: keep the face's overlays (drawn over black) if it has any.
+      const keys = (this.state.customCube.faces[face] || {}).overlayKeys || [];
+      this.state.customCube.faces[face] = keys.length ? { effect: 'none', overlayKeys: [...keys], opts: {} } : null;
     } else {
       if (typeof msg.effect !== 'string' || msg.effect === 'custom_cube' || !EFFECTS[msg.effect]) return;
       // Preserve overlayKeys/opts across a same-effect re-pick (e.g.
@@ -431,13 +433,17 @@ const COMMANDS = {
     if (!this.state.customCube) return;
     const face = Number(msg.face);
     if (!Number.isInteger(face) || face < 0 || face > 5) return;
-    const cfg = this.state.customCube.faces[face];
-    if (!cfg || !Array.isArray(msg.overlayKeys)) return;
+    if (!Array.isArray(msg.overlayKeys)) return;
     // Reject (not silently filter) a payload containing an unknown key -
     // same "malformed payload dropped whole" posture as _sanitizeAlarm,
     // rather than quietly saving a truncated list the client didn't ask for.
     if (msg.overlayKeys.some((k) => typeof k !== 'string' || !OVERLAY_KEYS.includes(k))) return;
+    let cfg = this.state.customCube.faces[face];
+    // A face with no effect can still have overlays: they're drawn over black.
+    if (!cfg) { if (!msg.overlayKeys.length) return; cfg = { effect: 'none', overlayKeys: [], opts: {} }; this.state.customCube.faces[face] = cfg; }
     cfg.overlayKeys = [...msg.overlayKeys];
+    if (cfg.effect === 'none' && !cfg.overlayKeys.length) this.state.customCube.faces[face] = null;
+    else if (msg.overlayKeys.length && this.state.effect !== 'custom_cube' && EFFECTS.custom_cube) { this.state.effect = 'custom_cube'; this.state.blank = false; this._playlistSince = Date.now(); }
     this._persistCustomCube();
   },
 

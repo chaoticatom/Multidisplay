@@ -210,7 +210,7 @@ function buildFaceCard(f) {
   sel.style.cssText = 'width:100%;background:#0a1020;border:1px solid rgba(80,120,255,0.35);color:#ccd;font-size:12px;padding:5px 7px;border-radius:4px;margin-bottom:8px;';
   const optNone = document.createElement('option');
   optNone.value = 'none'; optNone.textContent = '✕ None (blank face)';
-  if (!cfg) optNone.selected = true;
+  if (!cfg || cfg.effect === 'none') optNone.selected = true;
   sel.appendChild(optNone);
   Object.entries(effectNames).filter(([k]) => k !== 'custom_cube').forEach(([k, name]) => {
     const o = document.createElement('option'); o.value = k; o.textContent = name;
@@ -243,7 +243,6 @@ function buildFaceCard(f) {
     const tog = document.createElement('span'); tog.className = 'ov-toggle'; tog.style.marginLeft = '0';
     const chk = document.createElement('input'); chk.type = 'checkbox';
     chk.checked = !!(cfg && cfg.overlayKeys && cfg.overlayKeys.includes(ov));
-    chk.disabled = !cfg; // no face effect assigned yet - nothing to overlay onto
     chk.addEventListener('change', () => {
       const keys = new Set((cfg && cfg.overlayKeys) || []);
       if (chk.checked) keys.add(ov); else keys.delete(ov);

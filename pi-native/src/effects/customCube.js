@@ -43,8 +43,9 @@ function effectCustomCube(core, dt) {
   if (core.panelMode === '2d') {
     for (let i = 0; i < N * 3; i += 1) colBuf[i] = 0;
     const faceConfig = core.customCubeFaces && core.customCubeFaces[0];
-    if (!faceConfig || !faceConfig.effect || faceConfig.effect === 'none') return;
-    const rendered = renderFaceEffect(core, dt, faceConfig, savedOptions);
+    if (!faceConfig || !faceConfig.effect) return;
+    // 'none' with overlays: just the overlays, over black.
+    const rendered = faceConfig.effect === 'none' ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
     if (rendered && faceConfig.overlayKeys && faceConfig.overlayKeys.length) {
       applyFaceOverlays(core, 0, faceConfig.overlayKeys, dt, overlayState);
     }
@@ -60,10 +61,12 @@ function effectCustomCube(core, dt) {
 
   for (let f = 0; f < 6; f += 1) {
     const faceConfig = faces[f];
-    if (!faceConfig || !faceConfig.effect || faceConfig.effect === 'none') continue; // eslint-disable-line no-continue
+    if (!faceConfig || !faceConfig.effect) continue; // eslint-disable-line no-continue
+    if (faceConfig.effect === 'none' && !(faceConfig.overlayKeys && faceConfig.overlayKeys.length)) continue; // eslint-disable-line no-continue
 
     for (let i = 0; i < N * 3; i += 1) colBuf[i] = 0;
-    const rendered = renderFaceEffect(core, dt, faceConfig, savedOptions);
+    // 'none' with overlays: just the overlays, over black.
+    const rendered = faceConfig.effect === 'none' ? true : renderFaceEffect(core, dt, faceConfig, savedOptions);
     if (!rendered) continue; // eslint-disable-line no-continue
 
     if (faceConfig.overlayKeys && faceConfig.overlayKeys.length) {
