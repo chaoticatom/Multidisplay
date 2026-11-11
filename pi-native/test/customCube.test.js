@@ -252,6 +252,10 @@ await asyncTest('WS setFaceEffect/setFaceOpts/setFaceOverlays/saveCube/loadCube/
     client.send(JSON.stringify({ cmd: 'setFaceEffect', face: 0, effect: 'wave' }));
     const afterAssign = await nextMessage(client);
     assert.strictEqual(afterAssign.customCube.faces[0].effect, 'wave');
+    // Giving a face an effect shows the custom cube on the display (it used
+    // to be saved but not shown until Custom Cube was picked separately).
+    assert.strictEqual(afterAssign.effect, 'custom_cube');
+    assert.strictEqual(afterAssign.blank, false);
     assert.deepStrictEqual(afterAssign.customCube.faces[0].overlayKeys, []);
 
     client.send(JSON.stringify({ cmd: 'setFaceOpts', face: 0, opts: { foo: 'bar' } }));

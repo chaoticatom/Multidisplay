@@ -409,6 +409,10 @@ const COMMANDS = {
         overlayKeys: existing ? [...existing.overlayKeys] : [],
         opts: keepOpts ? { ...existing.opts } : {},
       };
+      // Show it: a face only appears on the panels while Custom Cube is the
+      // effect, so giving one an effect switches to it (and un-blanks).
+      if (this.state.effect !== 'custom_cube' && EFFECTS.custom_cube) { this.state.effect = 'custom_cube'; this._playlistSince = Date.now(); }
+      this.state.blank = false;
     }
     this._persistCustomCube();
   },
