@@ -4,7 +4,7 @@
 // preview from the per-face frames the server streams.
 // APP_VERSION is shown in the footer and must match package.json; it is
 // bumped by `npm run release`. Clicking it does a plain hard reload.
-const APP_VERSION = '0.7.28';
+const APP_VERSION = '0.7.29';
 
 const FACE_NAMES = ['Front', 'Back', 'Right', 'Left', 'Top', 'Bottom'];
 const FACE_XFORM = [
@@ -291,7 +291,6 @@ function handleTextMessage(msg) {
     syncMazePanel();
     syncTronPanel();
     syncDatetimePanel();
-    syncArtClockPanel();
     syncDicePanel();
     syncCoinflipPanel();
     syncFireworksPanel();
@@ -1294,15 +1293,6 @@ function wireDatetimePanel() {
   panel.querySelectorAll('[data-dtflag]').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.dtflag; setEffectOption('datetime', k, (currentState.effectOptions?.datetime || {})[k] === false);
   }));
-}
-
-// Art Clock's style picker (panel-art_clock).
-function wireArtClockPanel() {
-  document.querySelectorAll('#panel-art_clock [data-acstyle]').forEach((b) => b.addEventListener('click', () => setEffectOption('art_clock', 'style', b.dataset.acstyle)));
-}
-function syncArtClockPanel() {
-  const style = (currentState.effectOptions?.art_clock || {}).style || 'galaxy';
-  document.querySelectorAll('#panel-art_clock [data-acstyle]').forEach((b) => b.classList.toggle('active', b.dataset.acstyle === style));
 }
 
 function syncDatetimePanel() {
@@ -5208,7 +5198,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMazePanel();
   wireTronPanel();
   wireDatetimePanel();
-  wireArtClockPanel();
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
@@ -5562,7 +5551,7 @@ function fxSheetSync() {
   let mr = document.getElementById('fx-music');
   if (!mr) {
     mr = document.createElement('div'); mr.id = 'fx-music';
-    mr.innerHTML = '<div class="ov-row-label">🎵 Reacts to music</div><div class="opt-grid">' +
+    mr.innerHTML = '<div class="ov-row-label">Reacts to music</div><div class="opt-grid">' +
       [['', 'Like the rest'], ['0', 'Off'], ['0.3', 'A little'], ['0.6', 'Medium'], ['1', 'A lot']].map(([v, t]) => `<button type="button" class="strobe-mode-btn" data-mr="${v}">${t}</button>`).join('') + '</div>';
     mr.querySelectorAll('[data-mr]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setMusicReactFor', effect: currentState.effect, amount: b.dataset.mr === '' ? null : Number(b.dataset.mr) })));
     bodyEl.prepend(mr);

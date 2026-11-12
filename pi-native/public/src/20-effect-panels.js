@@ -451,15 +451,6 @@ function wireDatetimePanel() {
   }));
 }
 
-// Art Clock's style picker (panel-art_clock).
-function wireArtClockPanel() {
-  document.querySelectorAll('#panel-art_clock [data-acstyle]').forEach((b) => b.addEventListener('click', () => setEffectOption('art_clock', 'style', b.dataset.acstyle)));
-}
-function syncArtClockPanel() {
-  const style = (currentState.effectOptions?.art_clock || {}).style || 'galaxy';
-  document.querySelectorAll('#panel-art_clock [data-acstyle]').forEach((b) => b.classList.toggle('active', b.dataset.acstyle === style));
-}
-
 function syncDatetimePanel() {
   const panel = document.getElementById('panel-datetime');
   if (!panel) return;

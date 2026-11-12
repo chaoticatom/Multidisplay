@@ -2117,6 +2117,16 @@ body.hm .wall-remove { width: 26px !important; height: 26px !important; border-r
 body.hm #sidebar .nx-dial input[type=range] { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; opacity: 0 !important; margin: 0 !important; -webkit-appearance: auto; appearance: auto; }
 body.hm .nx-dial { position: relative; }
 
+/* Time & Date styles as picture tiles; music reaction as one pill switch. */
+.dt-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; margin-bottom: 10px; }
+body.hm .dt-tile { display: flex !important; flex-direction: column; align-items: stretch; gap: 6px; padding: 6px !important; border-radius: 16px !important; background: #0D1118 !important; border: 1px solid #171C26 !important; color: #B9C2D3 !important; font: 500 12px Inter, sans-serif !important; min-height: 0 !important; }
+.dt-tile i { display: block; aspect-ratio: 1; border-radius: 11px; }
+body.hm .dt-tile.active { border-color: #7FE6FF !important; color: #E8ECF4 !important; box-shadow: 0 0 0 3px rgba(127,230,255,.15) !important; }
+body.hm #fx-music .opt-grid { display: inline-flex !important; flex-wrap: wrap; gap: 4px !important; padding: 4px; border-radius: 999px; background: #0D1118; border: 1px solid #171C26; }
+body.hm #fx-music .opt-grid button { height: 30px; min-height: 0 !important; padding: 0 14px !important; border: 0 !important; background: transparent !important; color: #8892A6 !important; font: 500 13px Inter, sans-serif !important; }
+body.hm #fx-music .opt-grid button.active { background: #E8ECF4 !important; color: #0A0C11 !important; font-weight: 600 !important; }
+body.hm #fx-music .ov-row-label { margin-bottom: 8px !important; }
+
 /* Setup tiles everywhere: icon top-left, name and status bottom-left. */
 body.hm .sx-grid button { align-items: flex-start; justify-content: space-between; padding: 14px; border-color: #171C26; background: #0D1118; text-align: left; }
 body.hm .sx-grid button:first-child { border-color: color-mix(in srgb, var(--c) 50%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 10%, #0D1118), #0D1118 60%); }
@@ -2616,8 +2626,7 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
     <div class="effect-panel" id="panel-datetime">
       <div class="ov-row-label">Style</div>
       <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);">
-        <button data-dtstyle="neon">Neon</button><button data-dtstyle="flip">Flip</button><button data-dtstyle="analogue">Analogue</button>
-        <button data-dtstyle="words">Words</button><button data-dtstyle="minimal">Minimal</button>
+<button class="dt-tile" data-dtstyle="neon"><i style="background:linear-gradient(135deg,#ff2fa0,#3a0a2a)"></i><span>Neon</span></button><button class="dt-tile" data-dtstyle="flip"><i style="background:linear-gradient(180deg,#26262e 50%,#1c1c22 50%)"></i><span>Flip</span></button><button class="dt-tile" data-dtstyle="analogue"><i style="background:radial-gradient(circle,#E8ECF4 0 8%,#1a2130 9% 60%,#7FE6FF 61% 64%,#0b0f16 65%)"></i><span>Analogue</span></button><button class="dt-tile" data-dtstyle="words"><i style="background:linear-gradient(135deg,#2b3a55,#0b0f16)"></i><span>Words</span></button><button class="dt-tile" data-dtstyle="minimal"><i style="background:linear-gradient(135deg,#3a4458,#0b0f16)"></i><span>Minimal</span></button><button class="dt-tile" data-dtstyle="galaxy"><i style="background:radial-gradient(circle,#fff 0 6%,#b57bff 14%,#2a1450 40%,#04030a 70%)"></i><span>Galaxy</span></button><button class="dt-tile" data-dtstyle="solar"><i style="background:radial-gradient(circle,#ffd24c 0 12%,#3a2a10 20%,#04050c 60%)"></i><span>Solar</span></button><button class="dt-tile" data-dtstyle="blackhole"><i style="background:radial-gradient(ellipse 60% 25%,#000 0 30%,#ff9a3d 40%,#3a1a05 60%,#000 75%)"></i><span>Black hole</span></button><button class="dt-tile" data-dtstyle="nebula"><i style="background:linear-gradient(135deg,#ff6ab4,#4a9bff 60%,#0a0716)"></i><span>Nebula</span></button><button class="dt-tile" data-dtstyle="constellation"><i style="background:radial-gradient(circle at 30% 30%,#fff 0 3%,transparent 4%),radial-gradient(circle at 70% 60%,#fff 0 3%,transparent 4%),#060a1c"></i><span>Stars</span></button><button class="dt-tile" data-dtstyle="eclipse"><i style="background:radial-gradient(circle at 55% 50%,#05040a 0 30%,#ffd88a 32% 38%,#ff8a2a 44%,#05040a 62%)"></i><span>Eclipse</span></button><button class="dt-tile" data-dtstyle="clockwork"><i style="background:radial-gradient(circle,#0d0905 0 18%,#c2913a 20% 45%,#0d0905 47%)"></i><span>Clockwork</span></button><button class="dt-tile" data-dtstyle="fireflies"><i style="background:radial-gradient(circle at 40% 40%,#fff6a0 0 4%,transparent 9%),radial-gradient(circle at 65% 55%,#fff6a0 0 4%,transparent 9%),linear-gradient(#061016,#0b2414)"></i><span>Fireflies</span></button><button class="dt-tile" data-dtstyle="aurora"><i style="background:linear-gradient(180deg,#020610 20%,#3fe0a0 50%,#0a1420 80%)"></i><span>Aurora</span></button><button class="dt-tile" data-dtstyle="rings"><i style="background:radial-gradient(circle,#0b0f16 0 45%,#ffd24c 46% 52%,#0b0f16 53% 58%,#7FE6FF 59% 65%,#0b0f16 66%)"></i><span>Rings</span></button><button class="dt-tile" data-dtstyle="hourglass"><i style="background:linear-gradient(180deg,#1a1006 40%,#e8b86a 40% 50%,#1a1006 50% 70%,#e8b86a 70%)"></i><span>Hourglass</span></button><button class="dt-tile" data-dtstyle="mix"><i style="background:conic-gradient(#ff6ab4,#ffd24c,#5EE08A,#7FE6FF,#b57bff,#ff6ab4)"></i><span>Mix</span></button>
       </div>
       <div class="cx-row"><span>24-hour</span><button class="cx-switch" data-dtflag="h24" aria-label="24-hour"></button></div>
       <div class="cx-row"><span>Seconds</span><button class="cx-switch" data-dtflag="seconds" aria-label="Seconds"></button></div>
@@ -2627,11 +2636,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
         <button data-dtcol="auto">Auto</button><button data-dtcol="cyan">Cyan</button><button data-dtcol="amber">Amber</button>
         <button data-dtcol="pink">Pink</button><button data-dtcol="green">Green</button><button data-dtcol="white">White</button>
       </div>
-    </div>
-    <button class="effect-btn has-panel" data-effect="art_clock">◈ Art Clock <span class="panel-arrow">▸</span></button>
-    <div class="effect-panel" id="panel-art_clock">
-      <div class="ov-row-label">Style</div>
-      <div class="opt-grid" style="grid-template-columns:repeat(3,1fr);"><button data-acstyle="galaxy">Galaxy</button><button data-acstyle="solar">Solar system</button><button data-acstyle="blackhole">Black hole</button><button data-acstyle="nebula">Nebula hands</button><button data-acstyle="constellation">Constellation</button><button data-acstyle="eclipse">Eclipse</button><button data-acstyle="clockwork">Clockwork</button><button data-acstyle="fireflies">Fireflies</button><button data-acstyle="aurora">Aurora</button><button data-acstyle="rings">Rings</button><button data-acstyle="hourglass">Hourglass</button><button data-acstyle="mix">Mix</button></div>
     </div>
     <button class="effect-btn has-panel" data-effect="neo">◈ Near-Earth Objects <span class="panel-arrow">▸</span></button>
     <div class="effect-panel" id="panel-neo">
@@ -3943,6 +3947,6 @@ body.hm #sidebar-header { background: transparent !important; border-bottom: 1px
      for that station specifically. -->
 <audio id="radio-browser-audio" preload="none" crossorigin="anonymous"></audio>
 <script src="three.min.js"></script>
-<script src="app.js?v=0.7.28"></script>
+<script src="app.js?v=0.7.29"></script>
 </body>
 </html>

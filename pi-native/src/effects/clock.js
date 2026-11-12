@@ -23,7 +23,7 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 function options(core) {
   const o = (core.effectOptions && core.effectOptions.datetime) || {};
   return {
-    style: ['neon', 'flip', 'analogue', 'words', 'minimal'].includes(o.style) ? o.style : (LEGACY[o.mode] || 'neon'),
+    style: ['neon', 'flip', 'analogue', 'words', 'minimal'].includes(o.style) ? o.style : (LEGACY[o.mode] || 'neon'), // the Art Clock styles are drawn by artClock.js (see index.js artOr)
     h24: o.h24 !== false, seconds: o.seconds !== false, date: o.date !== false, colour: o.colour || 'auto',
   };
 }

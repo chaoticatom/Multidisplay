@@ -43,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
   wireMazePanel();
   wireTronPanel();
   wireDatetimePanel();
-  wireArtClockPanel();
   wireDicePanel();
   wireCoinflipPanel();
   wireFireworksPanel();
@@ -397,7 +396,7 @@ function fxSheetSync() {
   let mr = document.getElementById('fx-music');
   if (!mr) {
     mr = document.createElement('div'); mr.id = 'fx-music';
-    mr.innerHTML = '<div class="ov-row-label">🎵 Reacts to music</div><div class="opt-grid">' +
+    mr.innerHTML = '<div class="ov-row-label">Reacts to music</div><div class="opt-grid">' +
       [['', 'Like the rest'], ['0', 'Off'], ['0.3', 'A little'], ['0.6', 'Medium'], ['1', 'A lot']].map(([v, t]) => `<button type="button" class="strobe-mode-btn" data-mr="${v}">${t}</button>`).join('') + '</div>';
     mr.querySelectorAll('[data-mr]').forEach((b) => b.addEventListener('click', () => send({ cmd: 'setMusicReactFor', effect: currentState.effect, amount: b.dataset.mr === '' ? null : Number(b.dataset.mr) })));
     bodyEl.prepend(mr);

@@ -1,6 +1,6 @@
 {
   "name": "multidisplay-pi",
-  "version": "0.7.28",
+  "version": "0.7.29",
   "private": true,
   "description": "Effect engine, panel driver and control page for Multidisplay, running on a Raspberry Pi.",
   "main": "src/app.js",

@@ -21637,6 +21637,7 @@ var PiEngine = (() => {
         const o = core.effectOptions && core.effectOptions.datetime || {};
         return {
           style: ["neon", "flip", "analogue", "words", "minimal"].includes(o.style) ? o.style : LEGACY[o.mode] || "neon",
+          // the Art Clock styles are drawn by artClock.js (see index.js artOr)
           h24: o.h24 !== false,
           seconds: o.seconds !== false,
           date: o.date !== false,
@@ -32700,6 +32701,20 @@ var PiEngine = (() => {
       var aquarium = require_aquarium();
       var datetime = require_clock();
       var artClock = require_artClock();
+      function artOr(plain, art) {
+        const g = (core, dt) => {
+          const eo = core.effectOptions || {}, st = (eo.datetime || {}).style;
+          if (!(artClock.STYLES.includes(st) || st === "mix")) return plain(core, dt);
+          core.effectOptions = { ...eo, art_clock: { style: st } };
+          try {
+            return art(core, dt);
+          } finally {
+            core.effectOptions = eo;
+          }
+        };
+        for (const k of Object.keys(plain)) g[k] = plain[k];
+        return g;
+      }
       var { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require_cubeTops();
       var ghost = require_ghostFace();
       var ghost3d = require_ghost3d();
@@ -32808,7 +32823,7 @@ var PiEngine = (() => {
         weather: weatherWall,
         radar: radar.wall,
         talking_face: talkingFace.wall,
-        datetime: datetimeWall,
+        datetime: artOr(datetimeWall, artClock.wall),
         art_clock: artClock.wall,
         moon: celestialWall,
         ghost: ghostWall,
@@ -32885,7 +32900,7 @@ var PiEngine = (() => {
         tide,
         ghost: withTop(ghost, haloTop),
         ghost2: withTop(ghost3d, haloTop),
-        datetime: withTop(datetime, clockTop),
+        datetime: artOr(withTop(datetime, clockTop), artClock),
         art_clock: artClock,
         moon: withTop(moon, moonTop),
         epic,
@@ -32962,7 +32977,6 @@ var PiEngine = (() => {
         ghost: "Ghost Face",
         ghost2: "Ghost Face 2 (3D)",
         datetime: "Time & Date",
-        art_clock: "Art Clock",
         moon: "Celestial",
         epic: "Earth Live View",
         apod: "Astronomy Pic of the Day",

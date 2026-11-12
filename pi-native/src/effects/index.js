@@ -63,6 +63,17 @@ const cubeScenes2 = require('./cubeScenes2'); // Globe, Equaliser Tower, Lightho
 const aquarium = require('./aquarium'); // Aquarium
 const datetime = require('./clock'); // Time & Date - all styles, incl. Words
 const artClock = require('./artClock'); // Art Clock - graphical clocks (galaxy, solar system, ...)
+// Time & Date's style list includes the Art Clock styles: those draw with artClock.
+function artOr(plain, art) {
+  const g = (core, dt) => {
+    const eo = core.effectOptions || {}, st = (eo.datetime || {}).style;
+    if (!(artClock.STYLES.includes(st) || st === 'mix')) return plain(core, dt);
+    core.effectOptions = { ...eo, art_clock: { style: st } };
+    try { return art(core, dt); } finally { core.effectOptions = eo; }
+  };
+  for (const k of Object.keys(plain)) g[k] = plain[k];
+  return g;
+}
 const { withTop, clockTop, moonTop, recordTop, diceTop, coinTop, haloTop } = require('./cubeTops'); // cube top pictures for text/info effects
 const ghost = require('./ghostFace'); // Ghost Face
 const ghost3d = require('./ghost3d'); // Ghost Face 2 (true 3D)
@@ -176,7 +187,7 @@ const WALL_EFFECTS = {
   weather: weatherWall,
   radar: radar.wall,
   talking_face: talkingFace.wall,
-  datetime: datetimeWall,
+  datetime: artOr(datetimeWall, artClock.wall),
   art_clock: artClock.wall,
   moon: celestialWall,
   ghost: ghostWall,
@@ -250,7 +261,7 @@ const EFFECTS = {
   tide,
   ghost: withTop(ghost, haloTop),
   ghost2: withTop(ghost3d, haloTop),
-  datetime: withTop(datetime, clockTop),
+  datetime: artOr(withTop(datetime, clockTop), artClock),
   art_clock: artClock,
   moon: withTop(moon, moonTop),
   epic,
@@ -328,7 +339,6 @@ const EFFECT_NAMES = {
   ghost: 'Ghost Face',
   ghost2: 'Ghost Face 2 (3D)',
   datetime: 'Time & Date',
-  art_clock: 'Art Clock',
   moon: 'Celestial',
   epic: 'Earth Live View',
   apod: 'Astronomy Pic of the Day',

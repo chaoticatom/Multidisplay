@@ -38,4 +38,10 @@ test('an unknown style falls back to Galaxy; Mix picks a real style', () => {
   assert.ok(lit(c.colBuf, c.faceMap[0]) > 0);
 });
 
+test('Time & Date draws the Art Clock styles too', () => {
+  const lit0 = (style) => { const c = new CubeCore(32); c.effectOptions = { datetime: { style } }; EFFECTS.datetime(c, 1 / 30); return lit(c.colBuf, c.faceMap[0]); };
+  assert.ok(lit0('galaxy') > 10, 'a galaxy style draws');
+  assert.ok(lit0('neon') > 0, 'the plain styles still draw');
+});
+
 if (!process.exitCode) console.log('\nAll artClock tests passed');
